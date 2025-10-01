@@ -1,7 +1,7 @@
 # from models.UNet3D.unet3d import UNet3D
 # from models.UNet3D.unet3df import UNet3D_CSCL
 # from models.CropTypeMapping.models import FCN_CRNN
-from models.BiConvRNN.biconv_rnn import BiRNNSequentialEncoder
+# from models.BiConvRNN.biconv_rnn import BiRNNSequentialEncoder
 from models.TSViT.TSViTdense import TSViT
 from models.TSViT.TSViTcls import TSViTcls
 
