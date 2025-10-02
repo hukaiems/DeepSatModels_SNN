@@ -11,7 +11,9 @@ import numpy as np
 import os
 from models import get_model
 from utils.config_files_utils import read_yaml, copy_yaml, get_params_values
-from utils.torch_utils import get_device, get_net_trainable_params, load_from_checkpoint
+from utils.torch_utils import get_device, get_net_trainable_params
+# <<< CHANGED LINE: No longer using the simple load_from_checkpoint function
+# from utils.torch_utils import load_from_checkpoint
 from data import get_dataloaders
 from metrics.torch_metrics import get_mean_metrics
 from metrics.numpy_metrics import get_classification_metrics, get_per_class_loss
@@ -23,14 +25,7 @@ from data import get_loss_data_input
 def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
 
     def train_step(net, sample, loss_fn, optimizer, device, loss_input_fn):
-
-        # === ADD THESE TWO LINES FOR DEBUGGING ===
-        # print("DEBUG: Shape of input tensor:", sample['inputs'].shape)
-        # print("DEBUG: Shape of label tensor:", sample['labels'].shape)
-        # =========================================
-
         optimizer.zero_grad()
-        # print(sample['inputs'].shape)
         outputs = net(sample['inputs'].to(device))
         outputs = outputs.permute(0, 2, 3, 1)
         ground_truth = loss_input_fn(sample, device)
@@ -40,6 +35,7 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
         return outputs, ground_truth, loss
   
     def evaluate(net, evalloader, loss_fn, config):
+        # This function remains unchanged
         num_classes = config['MODEL']['num_classes']
         predicted_all = []
         labels_all = []
@@ -60,9 +56,6 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
                     predicted_all.append(predicted.view(-1).cpu().numpy())
                     labels_all.append(target.view(-1).cpu().numpy())
                 losses_all.append(loss.view(-1).cpu().detach().numpy())
-                
-                # if step > 5:
-                #    break
 
         print("finished iterating over dataset after step %d" % step)
         print("calculating metrics...")
@@ -99,6 +92,7 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
                 )
 
     #------------------------------------------------------------------------------------------------------------------#
+    # CONFIGURATION
     num_classes = config['MODEL']['num_classes']
     num_epochs = config['SOLVER']['num_epochs']
     lr = float(config['SOLVER']['lr_base'])
@@ -106,103 +100,137 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
     eval_steps = config['CHECKPOINT']['eval_steps']
     save_steps = config['CHECKPOINT']["save_steps"]
     save_path = config['CHECKPOINT']["save_path"]
-    checkpoint = config['CHECKPOINT']["load_from_checkpoint"]
+    checkpoint_path = config['CHECKPOINT']["load_from_checkpoint"]
     num_steps_train = len(dataloaders['train'])
     local_device_ids = config['local_device_ids']
     weight_decay = get_params_values(config['SOLVER'], "weight_decay", 0)
 
-    start_global = 1
-    start_epoch = 1
-    if checkpoint:
-        load_from_checkpoint(net, checkpoint, partial_restore=False)
-
-    print("current learn rate: ", lr)
-
+    if save_path and (not os.path.exists(save_path)):
+        os.makedirs(save_path)
+    copy_yaml(config)
+    
+    # SETUP MODELS, OPTIMIZER, SCHEDULER
     if len(local_device_ids) > 1:
         net = nn.DataParallel(net, device_ids=local_device_ids)
     net.to(device)
 
-    if save_path and (not os.path.exists(save_path)):
-        os.makedirs(save_path)
-
-    copy_yaml(config)
-
     loss_input_fn = get_loss_data_input(config)
-    
     loss_fn = {'all': get_loss(config, device, reduction=None),
                'mean': get_loss(config, device, reduction="mean")}
 
     trainable_params = get_net_trainable_params(net)
     optimizer = optim.AdamW(trainable_params, lr=lr, weight_decay=weight_decay)
-
-    optimizer.zero_grad()
-
     scheduler = build_scheduler(config, optimizer, num_steps_train)
-
     writer = SummaryWriter(save_path)
 
+    # <<< MODIFIED BLOCK: This entire block handles loading a full checkpoint for resuming
+    start_epoch = 1
+    start_global = 1
     BEST_IOU = 0
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        print(f"Loading checkpoint from: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        
+        # Load model state
+        # Handle DataParallel wrapper if the checkpoint was saved with it
+        model_state_dict = checkpoint['model_state_dict']
+        if len(local_device_ids) > 1 and not isinstance(net, nn.DataParallel):
+            net.module.load_state_dict(model_state_dict)
+        else:
+            net.load_state_dict(model_state_dict)
+
+        # Load optimizer and scheduler states
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        # Load training state variables
+        start_epoch = checkpoint.get('epoch', 1) + 1 # Start from the next epoch
+        start_global = checkpoint.get('abs_step', 1)
+        BEST_IOU = checkpoint.get('best_iou', 0)
+        
+        print(f"Resuming training from Epoch {start_epoch}, Step {start_global}")
+        print(f"Previous best IOU was {BEST_IOU}")
+    else:
+        print("No checkpoint found, starting training from scratch.")
+    # <<< END OF MODIFIED BLOCK
+
     net.train()
-    for epoch in range(start_epoch, start_epoch + num_epochs):  # loop over the dataset multiple times
+    for epoch in range(start_epoch, start_epoch + num_epochs):
         for step, sample in enumerate(dataloaders['train']):
             abs_step = start_global + (epoch - start_epoch) * num_steps_train + step
+            
+            # Train step
             logits, ground_truth, loss = train_step(net, sample, loss_fn, optimizer, device, loss_input_fn=loss_input_fn)
+            
             if len(ground_truth) == 2:
                 labels, unk_masks = ground_truth
             else:
                 labels = ground_truth
                 unk_masks = None
-            # print batch statistics ----------------------------------------------------------------------------------#
+
+            # Print batch statistics
             if abs_step % train_metrics_steps == 0:
                 logits = logits.permute(0, 3, 1, 2)
-                batch_metrics = get_mean_metrics(
-                    logits=logits, labels=labels, unk_masks=unk_masks, n_classes=num_classes, loss=loss, epoch=epoch,
-                    step=step)
+                batch_metrics = get_mean_metrics(logits=logits, labels=labels, unk_masks=unk_masks, n_classes=num_classes, loss=loss, epoch=epoch, step=step)
                 write_mean_summaries(writer, batch_metrics, abs_step, mode="train", optimizer=optimizer)
-                print("abs_step: %d, epoch: %d, step: %5d, loss: %.7f, batch_iou: %.4f, batch accuracy: %.4f, batch precision: %.4f, "
-                      "batch recall: %.4f, batch F1: %.4f" %
-                      (abs_step, epoch, step + 1, loss, batch_metrics['IOU'], batch_metrics['Accuracy'], batch_metrics['Precision'],
-                       batch_metrics['Recall'], batch_metrics['F1']))
+                print("abs_step: %d, epoch: %d, step: %5d, loss: %.7f, batch_iou: %.4f, ..." % (abs_step, epoch, step + 1, loss, batch_metrics['IOU']))
 
-            if abs_step % save_steps == 0:
-                if len(local_device_ids) > 1:
-                    torch.save(net.module.state_dict(), "%s/%depoch_%dstep.pth" % (save_path, epoch, abs_step))
-                else:
-                    torch.save(net.state_dict(), "%s/%depoch_%dstep.pth" % (save_path, epoch, abs_step))
+            # <<< MODIFIED BLOCK: Saving periodic checkpoints
+            if abs_step > 0 and abs_step % save_steps == 0:
+                # Prepare the full checkpoint dictionary
+                checkpoint_data = {
+                    'epoch': epoch,
+                    'abs_step': abs_step,
+                    'model_state_dict': net.state_dict() if len(local_device_ids) <= 1 else net.module.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'best_iou': BEST_IOU
+                }
+                save_filename = "%s/%depoch_%dstep.pth" % (save_path, epoch, abs_step)
+                torch.save(checkpoint_data, save_filename)
+                print(f"Saved periodic checkpoint to {save_filename}")
+            # <<< END OF MODIFIED BLOCK
 
-            # evaluate model ------------------------------------------------------------------------------------------#
-            if abs_step % eval_steps == 0:
+            # Evaluate model
+            if abs_step > 0 and abs_step % eval_steps == 0:
                 eval_metrics = evaluate(net, dataloaders['eval'], loss_fn, config)
+                
+                # <<< MODIFIED BLOCK: Saving the best checkpoint
                 if eval_metrics[1]['macro']['IOU'] > BEST_IOU:
-                    if len(local_device_ids) > 1:
-                        torch.save(net.module.state_dict(), "%s/best.pth" % (save_path))
-                    else:
-                        torch.save(net.state_dict(), "%s/best.pth" % (save_path))
                     BEST_IOU = eval_metrics[1]['macro']['IOU']
-
+                    print(f"New best IOU found: {BEST_IOU:.4f}. Saving best model.")
+                    # Prepare the full checkpoint dictionary
+                    checkpoint_data = {
+                        'epoch': epoch,
+                        'abs_step': abs_step,
+                        'model_state_dict': net.state_dict() if len(local_device_ids) <= 1 else net.module.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'scheduler_state_dict': scheduler.state_dict(),
+                        'best_iou': BEST_IOU
+                    }
+                    save_filename = "%s/best.pth" % (save_path)
+                    torch.save(checkpoint_data, save_filename)
+                    print(f"Saved best checkpoint to {save_filename}")
+                # <<< END OF MODIFIED BLOCK
 
                 write_mean_summaries(writer, eval_metrics[1]['micro'], abs_step, mode="eval_micro", optimizer=None)
                 write_mean_summaries(writer, eval_metrics[1]['macro'], abs_step, mode="eval_macro", optimizer=None)
-                write_class_summaries(writer, [eval_metrics[0], eval_metrics[1]['class']], abs_step, mode="eval",
-                                      optimizer=None)
+                write_class_summaries(writer, [eval_metrics[0], eval_metrics[1]['class']], abs_step, mode="eval", optimizer=None)
                 net.train()
 
         scheduler.step_update(abs_step)
 
 
-
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
     parser.add_argument('--config', help='configuration (.yaml) file to use')
-    parser.add_argument('--device', default='0,1', type=str,
-                         help='gpu ids to use')
-    parser.add_argument('--lin', action='store_true',
-                         help='train linear classifier only')
+    parser.add_argument('--device', default='0', type=str, help='gpu ids to use')
+    parser.add_argument('--lin', action='store_true', help='train linear classifier only')
 
     args = parser.parse_args()
     config_file = args.config
-    print(args.device)
     device_ids = [int(d) for d in args.device.split(',')]
     lin_cls = args.lin
 
@@ -212,7 +240,5 @@ if __name__ == "__main__":
     config['local_device_ids'] = device_ids
 
     dataloaders = get_dataloaders(config)
-
     net = get_model(config, device)
-
     train_and_evaluate(net, dataloaders, config, device)

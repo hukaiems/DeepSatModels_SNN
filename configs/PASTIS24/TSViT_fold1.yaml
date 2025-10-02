@@ -61,5 +61,5 @@ CHECKPOINT:
   partial_restore: False
   save_path: 'models/saved_models/PASTIS24/TSViT_fold1'
   train_metrics_steps: 250
-  eval_steps: 2000
-  save_steps: 20000000000
+  eval_steps: 20
+  save_steps: 10
