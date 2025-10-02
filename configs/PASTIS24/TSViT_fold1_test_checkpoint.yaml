@@ -43,7 +43,7 @@ DATASETS:
     num_workers: 4
 
 SOLVER:
-  num_epochs: 1
+  num_epochs: 2
   num_warmup_epochs: 10
   steps: (0, 80000)
   loss_function:  masked_cross_entropy
@@ -61,5 +61,5 @@ CHECKPOINT:
   partial_restore: False
   save_path: 'models/saved_models/PASTIS24/TSViT_fold1'
   train_metrics_steps: 250
-  eval_steps: 20
-  save_steps: 10
+  eval_steps: 2000
+  save_steps: 20000000000
