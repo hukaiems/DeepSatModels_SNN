@@ -1,4 +1,4 @@
-from yaml import load, dump
+from yaml import load, dump, FullLoader
 import os
 
 
