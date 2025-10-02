@@ -62,11 +62,12 @@ class ToTensor(object):
     def __call__(self, sample):
 
         # === ADD THIS LINE FOR DEBUGGING ===
-        print(f"DEBUG (ToTensor): Shape of NumPy label array is {sample['labels'].shape}")
+        # print(f"DEBUG (ToTensor): Shape of NumPy label array is {sample['labels'].shape}")
         # ===================================
 
         tensor_sample = {}
         tensor_sample['inputs'] = torch.tensor(sample['img']).to(torch.float32)
+        # just change to use the whole size of label
         tensor_sample['labels'] = torch.tensor(sample['labels'].astype(np.float32)).to(torch.float32).unsqueeze(-1)
         tensor_sample['doy'] = torch.tensor(np.array(sample['doy'])).to(torch.float32)
         return tensor_sample

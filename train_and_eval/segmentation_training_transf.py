@@ -25,8 +25,8 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
     def train_step(net, sample, loss_fn, optimizer, device, loss_input_fn):
 
         # === ADD THESE TWO LINES FOR DEBUGGING ===
-        print("DEBUG: Shape of input tensor:", sample['inputs'].shape)
-        print("DEBUG: Shape of label tensor:", sample['labels'].shape)
+        # print("DEBUG: Shape of input tensor:", sample['inputs'].shape)
+        # print("DEBUG: Shape of label tensor:", sample['labels'].shape)
         # =========================================
 
         optimizer.zero_grad()
