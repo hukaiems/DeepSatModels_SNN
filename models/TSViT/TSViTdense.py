@@ -409,16 +409,16 @@ class TSViT(nn.Module):
         )
 
     def forward(self, x):
-        x = x.permute(0, 1, 4, 2, 3)
+        x = x.permute(0, 1, 4, 2, 3)   #origin shape: B, T, H, W, C
         B, T, C, H, W = x.shape
 
         xt = x[:, :, -1, 0, 0]
         x = x[:, :, :-1]
         xt = (xt * 365.0001).to(torch.int64)
-        xt = F.one_hot(xt, num_classes=366).to(torch.float32)
+        xt = F.one_hot(xt, num_classes=366).to(torch.float32)  # turn integer into vector of 3366 days
 
         xt = xt.reshape(-1, 366)
-        temporal_pos_embedding = self.to_temporal_embedding_input(xt).reshape(B, T, self.dim)
+        temporal_pos_embedding = self.to_temporal_embedding_input(xt).reshape(B, T, self.dim) # learn unique vector for the date
         x = self.to_patch_embedding(x)
         x = x.reshape(B, -1, T, self.dim)
         x += temporal_pos_embedding.unsqueeze(1)
