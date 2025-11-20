@@ -388,10 +388,15 @@ class TemporalSpikingTransformer(nn.Module):
         pe_img = pe.view(T, B, pe_dim, 1, 1).expand(T, B, pe_dim, H, W)
         x_pe = torch.cat([x, pe_img], dim=2)
 
-        C_out = x_pe.shape[2]
+        # pass through embedding layer 14 -> 64 channels
+        x_flat = x_pe.flatten(0, 1)
+        x_emb = self.embedding(x_flat)
+
+        C_out = x_emb.shape[1]
+        x = x_emb.view(T, B, C_out, H, W)
 
         # now change the shape so it process temporal feature
-        x = x_pe.permute(1, 3, 4, 2, 0).reshape(B*H*W, C_out, T)
+        x = x.permute(1, 3, 4, 2, 0).reshape(B*H*W, C_out, T)
         # unsqueeze to add a another dim=1 inside any position given
         x = x.unsqueeze(0).unsqueeze(-1)
 
