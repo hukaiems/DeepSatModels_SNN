@@ -4,27 +4,6 @@ import torch.nn as nn
 import math
 from spikingjelly.clock_driven.neuron import MultiStepLIFNode
 
-class PositionalEncoding(nn.Module): #giving my class a lot of built in from pytorch
-    def __init__(self, d_model:int, max_len: int):
-        # remeber to inherent from the parent
-        super().__init__()
-
-        # the date needs 2 dimensions because in pe board/ vector we will have dates with each data contains d dimensions.
-        position = torch.arange(max_len).unsqueeze(1)
-        
-        # the size of the frequencies length is based on the d_model / 2
-        # the log() * i of the arrange next to it
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000) / d_model) ) #kind of hard to remember this, i can only get the intuition from it.
-
-        # now we will create the pe
-        pe = torch.zeros(max_len, d_model)
-        # now fill in the sin for even cos for odd.
-        # we need to select all rows and choose only columns
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-
-        # move pe into GPU to work with the model
-        self.register_buffer('pe', pe)
 
     # creating forward function to lookup and calculate dates PE
     def forward(self, t_indices: torch.vector):
@@ -39,7 +18,7 @@ class RecurrentSpikingEncoder(nn.Module):
         super().__init__()
         # 1. Positional Encoding 
         # turn date into vector (4 dims)
-        self.pos_encoder = PositionalEncoding(d_model=pe_dim)
+        self.pos_encoder = nn.Embedding(num_embeddings=366, embedding_dim=pe_dim)
         # 2. Spatial Processor
         #  A standard 2d Conv to detect those spatial like edges
         # it also stacks date vector with spatial data.
