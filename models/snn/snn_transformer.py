@@ -7,6 +7,89 @@ from spikingjelly.clock_driven.neuron import (
     MultiStepLIFNode,
 )
 
+# BN for the RepConv because pad 0 will different after BN so to make test and train consistent we use this func
+class BNAndPadLayer(n..Module):
+    def __init__(
+        self,
+        pad_pixels, #the number of pixels to add to become the pad
+        num_features, # the input features
+        eps=1e-5, # epsilon, tiny number for the formula to not crash
+        momentum=0.1, # how fast layer learns
+        affine=True,  # can shift data when normalization
+        track_running_stats=True # keep running average for inference.
+    ):
+        super().__init__()
+        self.bn = nn.BatchNorm2d(
+            num_features, eps, momentum, affine, track_running_stats
+        )
+        self.pad_pixels = pad_pixels
+    
+    # post padding, BN->padding
+    def forward(self, input):
+        output = self.bn(input)
+
+        # calculating the values
+        if self.pad_pixels > 0:
+            if self.bn.affine:
+                pad_values = (
+                    self.bn.bias.detach()
+                    - self.bn.running_mean
+                    * self.bn.weight.detach()
+                    / torch.sqrt(self.bn.running_var + self.bn.eps)
+                )
+            else:
+                pad_values = -self.bn.running_mean / torch.sqrt(
+                    self.bn.running_var + self.bn.eps
+                )
+            output = F.pad(output, [self.pad_pixels] * 4)
+            # put the values 0 after BN into the pad
+            pad_values = pad_values.view(1, -1, 1, 1)
+            output[:, :, 0 : self.pad_pixels, :] = pad_values
+            output[:, :, -self.pad_pixels :, :] = pad_values
+            output[:, :, :, 0 : self.pad_pixels] = pad_values
+            output[:, :, :, -self.pad_pixels :] = pad_values
+        return output
+
+    @property
+    def weight(self):
+        return self.bn.bias
+
+    @property
+    def bias(self):
+        return self.bn.bias
+
+    @property
+    def running_var(self):
+        return self.bn.running_var
+
+    @property
+    def eps(self):
+        return self.bn.eps
+
+# Reparameterization Conv, complex does training but simple for inferencing
+class RepConv(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        bias=False,
+    ):
+        super().__init__()
+        # hidden_channel = in_channel
+        conv1x1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, bias=False)
+        bn = BNAndPadLayer(pad_pixels=1, num_features=in_channels)
+        conv3x3 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, groups=in_channels, bias=False),
+            nn.Conv2d(in_channels, out_channels, bias=False),
+            nn.BatchNorm2d(out_channels),
+        )
+
+        self.body = nn.Sequential(conv1x1, bn, conv3x3)
+
+    def forward(self, x):
+        return self.body(x)
+
+
 # a down sampling class has in- out, detach, kernel, stride, pad
 # this one has first_layer bool too.
 
@@ -46,7 +129,7 @@ class MS_Downsampling(nn.Module):
             )
 
     def forward(self, x):
-        T, B, _, _, _ = x.shape
+        T, B, _, H, W = x.shape
 
         # check if second layer
         if hasattr(self, 'encode_lif'):
@@ -54,7 +137,7 @@ class MS_Downsampling(nn.Module):
 
         x = self.encode_conv(x.flatten(0, 1)) # conv process B first so merge T into B
         # bn -> reshape 5d -> contiguous
-        x = self.encode_bn(x).reshape(T, B, -1, H, W).contiguous()
+        x = self.bn(x).reshape(T, B, -1, H, W).contiguous()
 
         return x
     
@@ -78,7 +161,7 @@ class MS_Attention_RepConv(nn.Module):
             dim % num_heads == 0
         ), f"dim {dim} should be perfectly divided to num heads {num_heads}!"
 
-        self.dim = dim,
+        self.dim = dim
         self.num_heads = num_heads
         self.scale = 0.125 # scaling down final output of attn 
 
@@ -126,7 +209,7 @@ class MS_Attention_RepConv(nn.Module):
         v = self.v_conv(x.flatten(0, 1)).reshape(T, B, C, H, W)
         
         # turn  QKV into spikes 
-        q = self.q_lif(x).flatten(3) # flatten into 1 d
+        q = self.q_lif(q).flatten(3) # flatten into 1 d
         q = ( # repairing for attn  
             q.transpose(-1, -2) # change to T, B, N, C => transformer format
             .reshape(T, B, N, self.num_heads, C // self.num_heads)
@@ -134,7 +217,7 @@ class MS_Attention_RepConv(nn.Module):
             .contiguous()
         )  # Shape: (T, B, num_heads, N, head_dim)
 
-        k = self.k_lif(x).flatten(3)
+        k = self.k_lif(k).flatten(3)
         k = (
             k.transpose(-1, -2) # T, B, N, C
             .reshape(T, B, N, self.num_heads, C// self.num_heads) # parrallel num head
@@ -142,7 +225,7 @@ class MS_Attention_RepConv(nn.Module):
             .contiguous()
         )   
 
-        v = self.v_lif(x).flatten(3)
+        v = self.v_lif(v).flatten(3)
         v = (
             v.transpose(2, 3)
             .reshape(T, B, N, self.num_heads, C // self.num_heads)
@@ -179,7 +262,7 @@ class MS_MLP(nn.Module):
         hidden_features = hidden_features or in_features
 
         # first MLP block
-        self.fc1_conv = nn.Conv1d(in_features, hidden_dims, kernel_size=1, stride=1) # this layer will expand the attention map
+        self.fc1_conv = nn.Conv1d(in_features, hidden_features, kernel_size=1, stride=1) # this layer will expand the attention map
         self.fc1_bn = nn.BatchNorm1d(out_features)  # put in the correct dim 
         self.fc1_lif = MultiStepLIFNode(  # turn into spike again
             detach_reset=detach_reset, tau=2.0, backend='cupy'
@@ -264,7 +347,6 @@ class MS_Block(nn.Module):
         x = x + self.drop_path(self.mlp(x))
         return x
 
-    
 
 "temporal transformer"
 class TemporalSpikingTransformer(nn.Module):
