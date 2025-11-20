@@ -80,7 +80,7 @@ class RepConv(nn.Module):
         bn = BNAndPadLayer(pad_pixels=1, num_features=in_channels)
         conv3x3 = nn.Sequential(
             nn.Conv2d(in_channels, in_channels, kernel_size=3, groups=in_channels, bias=False),
-            nn.Conv2d(in_channels, out_channels, bias=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
         )
 
