@@ -265,7 +265,7 @@ class MS_MLP(nn.Module):
 
         # first MLP block
         self.fc1_conv = nn.Conv1d(in_features, hidden_features, kernel_size=1, stride=1) # this layer will expand the attention map
-        self.fc1_bn = nn.BatchNorm1d(out_features)  # put in the correct dim 
+        self.fc1_bn = nn.BatchNorm1d(hidden_features)  # put in the correct dim 
         self.fc1_lif = MultiStepLIFNode(  # turn into spike again
             detach_reset=detach_reset, tau=2.0, backend='cupy'
         )
