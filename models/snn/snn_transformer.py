@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 from spikingjelly.clock_driven.neuron import (
-    MultistepLIFNode,
+    MultiStepLIFNode,
 )
 
 # a down sampling class has in- out, detach, kernel, stride, pad
