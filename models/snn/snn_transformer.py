@@ -8,7 +8,7 @@ from spikingjelly.clock_driven.neuron import (
 )
 
 # BN for the RepConv because pad 0 will different after BN so to make test and train consistent we use this func
-class BNAndPadLayer(n..Module):
+class BNAndPadLayer(nn.Module):
     def __init__(
         self,
         pad_pixels, #the number of pixels to add to become the pad
