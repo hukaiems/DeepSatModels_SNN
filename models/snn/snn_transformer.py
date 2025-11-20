@@ -3,7 +3,7 @@
 
 import torch
 import torch.nn as nn
-from spikinghelly.clock_driven.neuron import (
+from spikingjelly.clock_driven.neuron import (
     MultistepLIFNode,
 )
 
