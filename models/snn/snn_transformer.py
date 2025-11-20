@@ -169,7 +169,7 @@ class MS_MLP(nn.Module):
         in_features,
         hidden_features=None,
         out_features=None,
-        detach_reset,
+        detach_reset=True,
         drop=0.0,
     ):
         super().__init__()
@@ -218,7 +218,7 @@ class MS_Block(nn.Module):
         self,
         dim,
         num_heads,
-        detach_reset,
+        detach_reset=True,
         mlp_ratio=4.0, # how much to expand in mlp
         qkv_bias=False,
         qk_scale=None,
