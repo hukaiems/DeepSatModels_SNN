@@ -6,6 +6,7 @@ import torch.nn as nn
 from spikingjelly.clock_driven.neuron import (
     MultiStepLIFNode,
 )
+import torch.nn.functional as F
 from timm.models.layers import DropPath
 
 # BN for the RepConv because pad 0 will different after BN so to make test and train consistent we use this func
