@@ -13,7 +13,7 @@ from spikinghelly.clock_driven.neuron import (
 class MS_Downsampling(nn.Module):
     def __init__(
         self,
-        detach_reset,
+        detach_reset=True,
         in_channels=2,
         embed_dims=256,
         kernel_size=3,
