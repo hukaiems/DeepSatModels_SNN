@@ -4,15 +4,6 @@ import torch.nn as nn
 import math
 from spikingjelly.clock_driven.neuron import MultiStepLIFNode
 
-
-    # creating forward function to lookup and calculate dates PE
-    def forward(self, t_indices: torch.vector):
-        # creating a safety check for the look up in PE
-        t_indices = torch.clamp(t_indices, 0, self.pe.shape[0] - 1)
-
-        # take the rows at the given index
-        return self.pe[t_indices, :]
-
 class RecurrentSpikingEncoder(nn.Module):
     def __init__(self, in_channels, out_channels, pe_dim=4):
         super().__init__()
