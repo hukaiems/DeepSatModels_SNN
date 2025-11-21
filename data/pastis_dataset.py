@@ -32,8 +32,16 @@ class CutOrPad:
 # initilize the dataset handling
 class PastisDataset:
     # dunder init contains 3 things root dir + data_paths and seq len for a batch
-    def __init__(self, csv_file, root_dir, max_seq_len):
-        self.data_paths = pd.read_csv(csv_file, header=None)
+    def __init__(self, data, root_dir, max_seq_len):
+        if isinstance(data, str):
+            self.data_paths = pd.read_csv(data, header=None)
+        
+        elif isinstance(data, pd.DataFrame):
+            self.data_paths = data
+        
+        elif isinstance(data, list):
+            self.data_paths = pd.DataFrame(data)
+
         self.root_dir = root_dir
         self.transform = CutOrPad(max_seq_len=max_seq_len)
     
