@@ -53,6 +53,9 @@ def get_args():
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
 
+    parser.add_argument('--num_workers', type=int, default=4,
+                        help="Number of CPU processors to load data for the model")
+
     return parser.parse_args()
 
 
@@ -117,7 +120,7 @@ def main():
 
     train_loader = DataLoader(
         PastisDataset(train_df, args.data_root, max_seq_len=args.max_seq_len),
-        batch_size=args.batch_size, shuffle=True, num_workers=2, drop_last=True
+        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
         # how many imgs process in 1 batch
         # shuffle indices of samples before creating the batch
         # workers: number of cpu processes run to load data
@@ -125,7 +128,7 @@ def main():
 
     val_loader = DataLoader(
         PastisDataset(val_df, args.data_root, max_seq_len=args.max_seq_len),
-        batch_size=args.batch_size, shuffle=False, num_workers=2, drop_last=True
+        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
     )
 
     # 2. Model Setup
