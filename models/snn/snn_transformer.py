@@ -302,7 +302,7 @@ class MS_Block(nn.Module):
     def __init__(
         self,
         dim,
-        num_heads,
+        num_heads=8,
         detach_reset=True,
         mlp_ratio=4.0, # how much to expand in mlp
         qkv_bias=False,
