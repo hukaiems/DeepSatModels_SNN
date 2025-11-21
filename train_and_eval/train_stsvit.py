@@ -41,8 +41,8 @@ def get_args():
                         default='/kaggle/working/spike_tsvit_checkpoint.pth',
                         help='Full path to save the best model checkpoint')
     # Hyperparameters
-    parser.add_argument('batch_size', type=int, default=4, help="Batch size")
-    parser.add_argument('epochs', type=int, default=15, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
+    parser.add_argument('--epochs', type=int, default=15, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
 
     # Model architecture
