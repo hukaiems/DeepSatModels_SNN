@@ -24,7 +24,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
 
-from data.pastis_dataset import PastisDataset
+from spike_data.pastis_dataset import PastisDataset
 from models.snn.spike_tsvit import SpikeTSViT
 from spikingjelly.clock_driven.functional import reset_net
 
