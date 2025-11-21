@@ -29,7 +29,7 @@ class SpikeTSViT(nn.Module):
         # A simple conv to project features into class scores
         # Havent down sample H-W so no need for a complex one
         self.decoder = nn.Sequential(  # increase the computation or power to process better
-            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, bias=False),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(embed_dim),
             nn.ReLU(), # lets me think later on
             nn.Conv2d(embed_dim, num_classes, kernel_size=1)
