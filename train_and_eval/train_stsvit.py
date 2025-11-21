@@ -1,10 +1,25 @@
+import sys
+import os
+
+# 1. Get the directory of the current script (train_stsvit.py)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Get the parent directory (DeepSatModels_SNN)
+# This is where 'data' and 'models' live
+repo_root = os.path.dirname(current_dir)
+
+# 3. Add the repo root to the Python path
+if repo_root not in sys.path:
+    sys.path.append(repo_root)
+    print(f"🔗 Added repo root to path: {repo_root}")
+
+
 import argparse # for adding argument in the cmd line
 import torch
 import torch.nn as nn # nn = neural network
 import torch.optim as optim  # optimizer lib like adam, sgd, ...
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
