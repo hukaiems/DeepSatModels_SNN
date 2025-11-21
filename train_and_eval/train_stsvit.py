@@ -111,9 +111,32 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"--- 🚀 Starting Training ---")
-    print(f"    CSV: {args.csv_path}")
-    print(f"    Save Path: {args.checkpoint_path}")
-    print(f"    Batch Size: {args.batch_size}")
+    print(f"📋 EXPERIMENT CONFIGURATION")
+    print(f"{'='*40}")
+    
+    # Paths
+    print(f"📂 Paths:")
+    print(f"   CSV Path:        {args.csv_path}")
+    print(f"   Data Root:       {args.data_root}")
+    print(f"   Checkpoint Path: {args.checkpoint_path}")
+
+    # Hyperparameters
+    print(f"\n⚙️  Hyperparameters:")
+    print(f"   Batch Size:      {args.batch_size}")
+    print(f"   Epochs:          {args.epochs}")
+    print(f"   Learning Rate:   {args.lr}")
+
+    # Model Architecture
+    print(f"\n🧠 Model Architecture:")
+    print(f"   Embedding Dim:   {args.embed_dim}")
+    print(f"   Attention Heads: {args.heads}")
+    print(f"   Spatial Depth:   {args.spatial_depth}")
+    print(f"   Max Seq Len:     {args.max_seq_len}")
+
+    # Misc
+    print(f"\n🔧 System/Misc:")
+    print(f"   Num Workers:     {args.num_workers}")
+    print(f"{'='*40}\n")
 
     # 1. Data setup
     full_df = pd.read_csv(args.csv_path, header=None)
