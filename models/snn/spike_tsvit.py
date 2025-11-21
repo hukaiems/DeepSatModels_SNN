@@ -1,5 +1,5 @@
 import torch
-import torch.nn
+import torch.nn as nn
 from .snn_transformer import MS_Block, TemporalSpikingTransformer
 
 "the normal testing "
