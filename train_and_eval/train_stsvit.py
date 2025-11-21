@@ -60,7 +60,7 @@ def get_args():
 
 
 # --- HELPER FUNCTIONS ---
-def train_one_epoch(model, dataloader, optimizer, criterion, device):
+def train_one_epoch(model, dataloader, optimizer, criterion, device, disable=disable_tqdm):
     model.train() # set model to train
     total_loss = 0.0
     progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm) # wrap dataloader act as iterator
