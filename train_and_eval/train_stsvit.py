@@ -49,12 +49,12 @@ def get_args():
     parser.add_argument('--embed_dim', type=int, default=64, help="Embedding dim")
     parser.add_argument('--heads', type=int, default=8, help="Number of attention heads")
     parser.add_argument('--spatial_depth', type=int, default=1, help='Number of spatial blocks')
-
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
-
     parser.add_argument('--num_workers', type=int, default=4,
                         help="Number of CPU processors to load data for the model")
+    parser.add_argument('--no_progress_bar', action='store_true', 
+                        help="Disable tqdm progress bar (useful for Kaggle Commit/Save Version)")
 
     return parser.parse_args()
 
@@ -63,7 +63,7 @@ def get_args():
 def train_one_epoch(model, dataloader, optimizer, criterion, device):
     model.train() # set model to train
     total_loss = 0.0
-    progress_bar = tqdm(dataloader, desc="Training", leave=False) # wrap dataloader act as iterator
+    progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm) # wrap dataloader act as iterator
 
     # run for each batch
     for batch in progress_bar:
@@ -81,17 +81,18 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device):
         reset_net(model) # delete the voltage left out of LIF
 
         total_loss += loss.item()
-        progress_bar.set_postfix(loss=loss.item()) # text after the bar display instantly
+        if not disable_tqdm:
+            progress_bar.set_postfix(loss=loss.item())# text after the bar display instantly        
 
     return total_loss / len(dataloader)
 
 
-def evaluate(model, dataloader, metric_fn, device):
+def evaluate(model, dataloader, metric_fn, device, disable_tqdm=False):
     model.eval()
     metric_fn.reset() # metric func-obj to know how good prediction ares
 
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc='Evaluating', leave=False):
+        for batch in tqdm(dataloader, desc='Evaluating', leave=False, disable=disable_tqdm):
             x = batch['sequence'].to(device)
             dates = batch['dates'].to(device)
             y = batch['labels'].to(device)
@@ -146,8 +147,8 @@ def main():
     # 3. Training loop
     best_score = 0.0
     for epoch in range(args.epochs):
-        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
-        val_miou = evaluate(model, val_loader, metric, device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, disable_tqdm=args.no_progress_bar)
+        val_miou = evaluate(model, val_loader, metric, device, disable_tqdm=args.no_progress_bar)
 
         print(f"Epoch {epoch+1}/{args.epochs} | Loss: {train_loss:.4f} | Val mIoU: {val_miou:.4f}")
 
