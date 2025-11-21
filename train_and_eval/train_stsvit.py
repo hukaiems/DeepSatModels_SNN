@@ -133,9 +133,7 @@ def main():
         in_channels=10,
         embed_dim=args.embed_dim,
         num_classes=20,
-        num_heads=args.heads,
         spatial_depth=args.spatial_depth,
-        pe_dim=4
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
