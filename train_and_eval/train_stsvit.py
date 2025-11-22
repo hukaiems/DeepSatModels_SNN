@@ -49,6 +49,7 @@ def get_args():
     parser.add_argument('--embed_dim', type=int, default=64, help="Embedding dim")
     parser.add_argument('--heads', type=int, default=8, help="Number of attention heads")
     parser.add_argument('--spatial_depth', type=int, default=1, help='Number of spatial blocks')
+    parser.add_argument('--temporal_depth', type=int, default=1, help='Number of temporal blocks')
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--num_workers', type=int, default=4,
@@ -161,6 +162,7 @@ def main():
         embed_dim=args.embed_dim,
         num_classes=20,
         spatial_depth=args.spatial_depth,
+        temporal_depth=args.temporal_depth,
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)

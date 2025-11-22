@@ -357,7 +357,8 @@ class TemporalSpikingTransformer(nn.Module):
         in_channels,
         out_channels,
         pe_dim=4,
-        num_heads=8
+        num_heads=8,
+        temporal_depth=1,
     ):
         super().__init__()
         # use PE library
@@ -369,12 +370,15 @@ class TemporalSpikingTransformer(nn.Module):
         )
 
         # attention_layer
-        self.temporal_block = MS_Block(
-            dim=out_channels,
-            num_heads=num_heads,
-            detach_reset=True,
-            # other use default parameters   
-        )
+        self.temporal_blocks = nn.ModuleList([
+            MS_Block(
+                dim=out_channels,
+                num_heads=num_heads,
+                detach_reset=True,
+                # other use default parameters   
+            )
+            for _ in range(temporal_depth)
+        ])
     
     def forward(self, x, dates):
         x = x.permute(1, 0, 2, 3, 4)
@@ -402,7 +406,8 @@ class TemporalSpikingTransformer(nn.Module):
         x = x.unsqueeze(0).unsqueeze(-1)
 
         # put in the attention block
-        x = self.temporal_block(x)
+        for block in self.temporal_blocks:
+            x = block(x)
         
         # reshape back
         x = x.squeeze(0).squeeze(-1)

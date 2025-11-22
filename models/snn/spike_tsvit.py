@@ -8,7 +8,8 @@ class SpikeTSViT(nn.Module):
         self,
         in_channels=10,
         embed_dim=64,
-        spatial_depth=2,
+        temporal_depth=1,
+        spatial_depth=1,
         num_classes=20,
     ):
         super().__init__()
@@ -16,6 +17,7 @@ class SpikeTSViT(nn.Module):
         self.temporal_encoder = TemporalSpikingTransformer(
             in_channels=in_channels,
             out_channels=embed_dim,
+            temporal_depth=temporal_depth,
         )
 
         self.spatial_encoder = nn.ModuleList([
