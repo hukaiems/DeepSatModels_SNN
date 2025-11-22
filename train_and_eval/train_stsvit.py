@@ -144,7 +144,7 @@ def main():
     train_df, val_df = train_test_split(full_df, test_size=0.2, random_state=42)
 
     train_loader = DataLoader(
-        PastisDataset(train_df, args.data_root, max_seq_len=args.max_seq_len),
+        PastisDataset(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
         # how many imgs process in 1 batch
         # shuffle indices of samples before creating the batch
@@ -152,7 +152,7 @@ def main():
     )
 
     val_loader = DataLoader(
-        PastisDataset(val_df, args.data_root, max_seq_len=args.max_seq_len),
+        PastisDataset(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
         batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
     )
 
