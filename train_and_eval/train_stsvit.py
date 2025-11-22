@@ -69,7 +69,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
     progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm) # wrap dataloader act as iterator
 
     # run for each batch
-    for batch in progress_bar:
+    for i, batch in enumerate(progress_bar):
         # load from the dataset
         x = batch['sequence'].to(device)
         dates = batch['dates'].to(device)
