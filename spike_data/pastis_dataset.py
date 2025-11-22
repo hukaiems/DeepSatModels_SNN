@@ -32,7 +32,7 @@ class CutOrPad:
 # initilize the dataset handling
 class PastisDataset:
     # dunder init contains 3 things root dir + data_paths and seq len for a batch
-    def __init__(self, data, root_dir, max_seq_len):
+    def __init__(self, data, root_dir, max_seq_len, mode='train'):
         if isinstance(data, str):
             self.data_paths = pd.read_csv(data, header=None)
         
@@ -44,6 +44,20 @@ class PastisDataset:
 
         self.root_dir = root_dir
         self.transform = CutOrPad(max_seq_len=max_seq_len)
+        self.mode = mode
+        # In __init__
+        self.mean = torch.tensor([
+            1165.9398193359375, 1375.6534423828125, 1429.2191162109375, 1764.798828125,
+            2719.273193359375, 3063.61181640625, 3205.90185546875, 3319.109619140625,
+            2422.904296875, 1639.370361328125
+        ]).view(1, -1, 1, 1).float()
+
+        self.std = torch.tensor([
+            1942.6156005859375, 1881.9234619140625, 1959.3798828125, 1867.2239990234375,
+            1754.5850830078125, 1769.4046630859375, 1784.860595703125, 1767.7100830078125,
+            1458.963623046875, 1299.2833251953125
+        ]).view(1, -1, 1, 1).float()
+
     
     # dunder return len for the DataLoader to know and run
     def __len__(self):
@@ -65,9 +79,46 @@ class PastisDataset:
         x_sequence = self.transform(img_tensor)
         date_indices = self.transform(doy_tensor)
 
+        # 4. Apply transformation
+        x_sequence, label_tensor = self.apply_transforms(x_sequence, label_tensor)
+
         return {
             'sequence': x_sequence,
             'dates': date_indices,
             'labels': label_tensor
         }
+    
+    # transformation data
+    def apply_transforms(self, x, y):
+        # 1. Normalization - Formula (X - Mean) / Std so activation wont be explode like LIF.
+        x = (x.float() - self.mean) / self.std
 
+        # 2. Geometric Augmentation (Train only)
+        if self.mode == 'train':
+
+            # 50 percent chance get flipping
+            # Horizontal flip
+            if random.random() < 0.5:
+                x = torch.flip(x, dims=[-1])
+                y = torch.flip(y, dims=[-1])
+
+            # Vertical flip
+            if random.random() < 0.5:
+                x = torch.flip(x, dims[-2])
+                y = torch.flip(y, dims[-2])
+            
+            # 90 degree rotation
+            k = random.randint(0, 3)
+            if k > 0:
+                x = torch.rot90(x, k, dims=[-2, -1])
+                y = torch.rot90(y, k, dims=[-2, -1])
+            
+            # Noise injection (Robustness)
+            if random.random() < 0.2:
+                noise = torch.randn_like(x) * 0.05 # create tensor "x" shape fill with bell curver fvalues
+                x += noise
+            
+        return x, y
+            
+
+            
