@@ -62,7 +62,7 @@ def get_args():
 
 
 # --- HELPER FUNCTIONS ---
-def train_one_epoch(model, dataloader, optimizer, criterion, device, disable_tqdm=False):
+def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False):
     model.train() # set model to train
     total_loss = 0.0
     optimizer.zero_grad() # set zero grad
@@ -189,7 +189,7 @@ def main():
     # 3. Training loop
     best_score = 0.0
     for epoch in range(args.epochs):
-        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, disable_tqdm=args.no_progress_bar)
+        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, accum_steps=args.grad_accum_steps, disable_tqdm=args.no_progress_bar)
         val_miou = evaluate(model, val_loader, metric, device, disable_tqdm=args.no_progress_bar)
 
         print(f"Epoch {epoch+1}/{args.epochs} | Loss: {train_loss:.4f} | Val mIoU: {val_miou:.4f}")
