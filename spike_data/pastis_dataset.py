@@ -105,8 +105,8 @@ class PastisDataset:
 
             # Vertical flip
             if random.random() < 0.5:
-                x = torch.flip(x, dims[-2])
-                y = torch.flip(y, dims[-2])
+                x = torch.flip(x, dims=[-2])
+                y = torch.flip(y, dims=[-2])
             
             # 90 degree rotation
             k = random.randint(0, 3)
