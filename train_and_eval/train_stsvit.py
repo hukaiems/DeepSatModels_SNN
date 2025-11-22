@@ -140,7 +140,7 @@ def main():
     # Hyperparameters
     print(f"\n⚙️  Hyperparameters:")
     print(f"   Batch Size:      {args.batch_size}")
-    print(f"Effective Batch Size: {args.batch_size * args.grad_accum_steps}")
+    print(f"   Effective Batch Size: {args.batch_size * args.grad_accum_steps}")
     print(f"   Epochs:          {args.epochs}")
     print(f"   Learning Rate:   {args.lr}")
 
@@ -148,6 +148,7 @@ def main():
     print(f"\n🧠 Model Architecture:")
     print(f"   Embedding Dim:   {args.embed_dim}")
     print(f"   Attention Heads: {args.heads}")
+    print(f"   Temporal Depth:   {args.temporal_depth}")
     print(f"   Spatial Depth:   {args.spatial_depth}")
     print(f"   Max Seq Len:     {args.max_seq_len}")
 
