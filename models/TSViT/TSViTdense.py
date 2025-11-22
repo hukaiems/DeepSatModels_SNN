@@ -420,10 +420,10 @@ class TSViT(nn.Module):
         xt = xt.reshape(-1, 366)
         temporal_pos_embedding = self.to_temporal_embedding_input(xt).reshape(B, T, self.dim) # learn unique vector for the date
         x = self.to_patch_embedding(x)
-        x = x.reshape(B, -1, T, self.dim) # Shape: B, 
+        x = x.reshape(B, -1, T, self.dim) # Shape: B, H*W, T, hidden_dim
         x += temporal_pos_embedding.unsqueeze(1)
-        x = x.reshape(-1, T, self.dim)
-        cls_temporal_tokens = repeat(self.temporal_token, '() N d -> b N d', b=B * self.num_patches_1d ** 2)
+        x = x.reshape(-1, T, self.dim) # (Batch * Pixels, Time, Dim)
+        cls_temporal_tokens = repeat(self.temporal_token, '() N d -> b N d', b=B * self.num_patches_1d ** 2) # they need cls due to the float nature
         x = torch.cat((cls_temporal_tokens, x), dim=1)
         x = self.temporal_transformer(x)
         x = x[:, :self.num_classes]

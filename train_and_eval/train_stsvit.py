@@ -44,6 +44,7 @@ def get_args():
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
     parser.add_argument('--epochs', type=int, default=15, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
+    parser.add_argument('--grad_accum_steps', type=int, default=1, help="Virtual batch size multiplier")
 
     # Model architecture
     parser.add_argument('--embed_dim', type=int, default=64, help="Embedding dim")
@@ -64,6 +65,7 @@ def get_args():
 def train_one_epoch(model, dataloader, optimizer, criterion, device, disable_tqdm=False):
     model.train() # set model to train
     total_loss = 0.0
+    optimizer.zero_grad() # set zero grad
     progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm) # wrap dataloader act as iterator
 
     # run for each batch
@@ -77,13 +79,27 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, disable_tqd
         optimizer.zero_grad() # clear gradients from previous batch
         logits = model(x, dates)
         loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
+
+        # 2 Scale loss due to the fact crossentropy cals 4 imgs a time.
+        loss = loss / accum_steps
         loss.backward()
-        optimizer.step()
+
+        # 3. Conditional Update
+        if (i + 1) % accum_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+
         reset_net(model) # delete the voltage left out of LIF
 
         total_loss += loss.item()
         if not disable_tqdm:
-            progress_bar.set_postfix(loss=loss.item())# text after the bar display instantly        
+            progress_bar.set_postfix(loss=loss.item() * accum_steps)# text after the bar display instantly
+        
+    # Handle Leftovers
+    if (len(dataloader) % accum_steps) != 0:
+        optimizer.step()
+        optimizer.zero_grad()
+        reset_net(model)
 
     return total_loss / len(dataloader)
 
@@ -124,6 +140,7 @@ def main():
     # Hyperparameters
     print(f"\n⚙️  Hyperparameters:")
     print(f"   Batch Size:      {args.batch_size}")
+    print(f"Effective Batch Size: {args.batch_size * args.grad_accum_steps}")
     print(f"   Epochs:          {args.epochs}")
     print(f"   Learning Rate:   {args.lr}")
 

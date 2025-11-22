@@ -403,7 +403,7 @@ class TemporalSpikingTransformer(nn.Module):
         # now change the shape so it process temporal feature
         x = x.permute(1, 3, 4, 2, 0).reshape(B*H*W, C_out, T)
         # unsqueeze to add a another dim=1 inside any position given
-        x = x.unsqueeze(0).unsqueeze(-1)
+        x = x.unsqueeze(0).unsqueeze(-1) # (1, B*H*W, C_out, T, 1)
 
         # put in the attention block
         for block in self.temporal_blocks:
