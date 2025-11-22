@@ -4,6 +4,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 import os
 import pickle
+import random 
 
 # initilize cut or pad function
 class CutOrPad:
