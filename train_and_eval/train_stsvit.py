@@ -36,6 +36,7 @@ def get_args():
     parser.add_argument('--csv_path', type=str, 
                         default='/kaggle/working/DeepSatModels_SNN/configs/PASTIS24/splits/pastis_subset_10_percent.csv',
                         help="Path to the CSV file containing data paths")
+    parser.add_argument('--val_csv_path', type=str, default=None, help="Optional: Path to Validation CSV. If None, splits csv_path.")
     parser.add_argument('--data_root', type=str, default="/kaggle/input", help="Root dir of dataset")
     parser.add_argument('--checkpoint_path', type=str, 
                         default='/kaggle/working/spike_tsvit_checkpoint.pth',
@@ -157,9 +158,19 @@ def main():
     print(f"   Num Workers:     {args.num_workers}")
     print(f"{'='*40}\n")
 
-    # 1. Data setup
-    full_df = pd.read_csv(args.csv_path, header=None)
-    train_df, val_df = train_test_split(full_df, test_size=0.2, random_state=42)
+    # --- DATA SPLITTING LOGIC ---
+    if args.val_csv_path:
+        print(f"📂 Standard Mode: Using explicit Train/Val splits.")
+        print(f"   Train: {args.csv_path}")
+        print(f"   Val:   {args.val_csv_path}")
+
+        train_df = pd.read_csv(args.csv_path, header=None)
+        val_df = pd.read_csv(args.csv_path, header=None)
+    else:       
+        print(f"🧪 Experiment Mode: Randomly splitting single CSV.")
+        print(f"   Source: {args.csv_path}")
+        full_df = pd.read_csv(args.csv_path, header=None)
+        train_df, val_df = train_test_split(full_df, test_size=0.2, random_state=42)
 
     train_loader = DataLoader(
         PastisDataset(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
