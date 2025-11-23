@@ -342,12 +342,12 @@ class MS_Block(nn.Module):
         drop_path=0.1,
         norm_layer=nn.LayerNorm,
         sr_ratio = 1.0,
-        attn_mode="2D_dot", # attn mode cause the model has 3 modes
+        att_mode="2D_dot", # attn mode cause the model has 3 modes
     ):
         super().__init__()
 
         # now the attn mode
-        if attn_mode == "2D_dot":
+        if att_mode == "2D_dot":
             print("2D attn mode is used.")
             self.attn = MS_Attention_RepConv(
                 dim, 
