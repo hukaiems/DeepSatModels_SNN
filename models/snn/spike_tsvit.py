@@ -11,6 +11,7 @@ class SpikeTSViT(nn.Module):
         temporal_depth=1,
         spatial_depth=1,
         num_classes=20,
+        att_mode="2D_dot",
     ):
         super().__init__()
 
@@ -18,11 +19,13 @@ class SpikeTSViT(nn.Module):
             in_channels=in_channels,
             out_channels=embed_dim,
             temporal_depth=temporal_depth,
+            att_mode=att_mode,
         )
 
         self.spatial_encoder = nn.ModuleList([
             MS_Block( # transformer block keep the shape in and out the same.
                 dim=embed_dim,
+                att_mode=att_mode
             )
             for _ in range(spatial_depth)
         ])

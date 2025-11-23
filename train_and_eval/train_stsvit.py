@@ -54,6 +54,11 @@ def get_args():
     parser.add_argument('--temporal_depth', type=int, default=1, help='Number of temporal blocks')
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
+
+    # Attention Mode
+    parser.add_argument('--att_mode', type=str, default='2D_dot', choices=['2D_dot', '2D_ham'], 
+                        help="Attention mechanism: 'dot' (Standard) or 'hamming' (Efficiency)")
+
     parser.add_argument('--num_workers', type=int, default=4,
                         help="Number of CPU processors to load data for the model")
     parser.add_argument('--no_progress_bar', action='store_true', 
@@ -149,9 +154,10 @@ def main():
     print(f"\n🧠 Model Architecture:")
     print(f"   Embedding Dim:   {args.embed_dim}")
     print(f"   Attention Heads: {args.heads}")
-    print(f"   Temporal Depth:   {args.temporal_depth}")
+    print(f"   Temporal Depth:  {args.temporal_depth}")
     print(f"   Spatial Depth:   {args.spatial_depth}")
     print(f"   Max Seq Len:     {args.max_seq_len}")
+    print(f"   Attention mode:  {args.att_mode}")
 
     # Misc
     print(f"\n🔧 System/Misc:")
@@ -192,6 +198,7 @@ def main():
         num_classes=20,
         spatial_depth=args.spatial_depth,
         temporal_depth=args.temporal_depth,
+        att_mode=args.attn_mode,
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)

@@ -153,6 +153,7 @@ class MS_Attention_RepConv(nn.Module):
 
         qkv_bias=False,
         qk_scale=None,
+        sim_mode='dot',
 
         attn_drop=0.0,
         proj_drop=0.0,   # usually be applied in the final output of the attn block.
@@ -165,7 +166,9 @@ class MS_Attention_RepConv(nn.Module):
 
         self.dim = dim
         self.num_heads = num_heads
-        self.scale = 0.125 # scaling down final output of attn 
+        self.head_dim = dim // num_heads # for normalization
+        self.scale = 0.125 # scaling down final output of attn
+        self.sim_mode = sim_mode
 
         # the encoder neuron
         self.head_lif = MultiStepLIFNode( #with keyword, order doesn matter
@@ -191,14 +194,24 @@ class MS_Attention_RepConv(nn.Module):
         )
 
         # a neuron to perform attention
-        self.attn_lif = MultiStepLIFNode(
-            tau=2.0, detach_reset=detach_reset, backend='cupy'
-        )
+        # the attn_lif will have 2 modes for dot and hamming
+        if self.sim_mode =='dot':
+            self.attn_lif = MultiStepLIFNode(
+                tau=2.0, detach_reset=detach_reset, backend='cupy', v_threshold=0.5
+            )
+        elif self.sim_mode == 'hamming':
+            self.attn_bn = nn.BatchNorm2d(dim)
+            self.attn_lif = MultiStepLIFNode(
+                tau=2.0, detach_reset=detach_reset, v_threshold=1.0, v_reset=0.0,
+            )
+        else: 
+            raise NotImplementedError
 
         self.proj_conv = nn.Sequential(
             RepConv(dim, dim, bias=False),
             nn.BatchNorm2d(dim),
         )
+
     def forward(self, x):
         T, B, C, H, W = x.shape
         N = H*W # number of tokens for transformer
@@ -235,12 +248,29 @@ class MS_Attention_RepConv(nn.Module):
             .contiguous()
         )
 
-        # calculate the attention map
-        x = k.transpose(-2, -1) @ v   # for pytorch to use matmul its only cares about last 2 dims
-        x = (q @ x) * self.scale # x shape: (T, B, num_head, N, dim)
+        # calculate the attention map 
+        # base on 2 modes
+        if self.sim_mode == 'dot':
+            x = k.transpose(-2, -1) @ v   # for pytorch to use matmul its only cares about last 2 dims
+            x = (q @ x) * self.scale # x shape: (T, B, num_head, N, dim)
+        elif self.sim_mode == 'hamming':
+            x = (2 * k - 1).transpose(-2, -1) @ v
+            x = (2 * q - 1) @ x
+            x = x / (2 * self.head_dim)
+        else: 
+            raise NotImplementedError
 
         # now perform reshape and stacking
         x = x.transpose(3, 4).reshape(T, B, C, N).contiguous()  # after permute or transpose should put contiguous for safety
+        
+        if self.sim_mode == 'dot':
+            pass
+        elif self.sim_mode == "hamming":
+            x = x.view(T, B, C, H, W)
+            x = self.attn_bn(x.flatten(0, 1)).reshape(T, B, C, H, W)
+        else:
+            raise NotImplementedError
+        
         x = self.attn_lif(x).reshape(T, B, C, H, W) # now it stack but still need to process 
         x = x.flatten(0, 1)
         x = self.proj_conv(x).reshape(T, B, C, H, W)
@@ -312,12 +342,12 @@ class MS_Block(nn.Module):
         drop_path=0.1,
         norm_layer=nn.LayerNorm,
         sr_ratio = 1.0,
-        attn_mode="2D", # attn mode cause the model has 3 modes
+        attn_mode="2D_dot", # attn mode cause the model has 3 modes
     ):
         super().__init__()
 
         # now the attn mode
-        if attn_mode == "2D":
+        if attn_mode == "2D_dot":
             print("2D attn mode is used.")
             self.attn = MS_Attention_RepConv(
                 dim, 
@@ -328,6 +358,19 @@ class MS_Block(nn.Module):
                 attn_drop=attn_drop,
                 proj_drop=drop,
                 sr_ratio=sr_ratio,
+                sim_mode='dot',
+            )
+        elif att_mode == '2D_ham':
+            self.attn = MS_Attention_RepConv(
+                dim, 
+                num_heads=num_heads,
+                detach_reset=detach_reset,
+                qkv_bias=qkv_bias,
+                qk_scale=qk_scale,
+                attn_drop=attn_drop,
+                proj_drop=drop,
+                sr_ratio=sr_ratio,
+                sim_mode='hamming',
             )
         # currently not implementing those other attention
         else:
@@ -359,6 +402,7 @@ class TemporalSpikingTransformer(nn.Module):
         pe_dim=4,
         num_heads=8,
         temporal_depth=1,
+        att_mode='2D_dot',
     ):
         super().__init__()
         # use PE library
@@ -375,6 +419,7 @@ class TemporalSpikingTransformer(nn.Module):
                 dim=out_channels,
                 num_heads=num_heads,
                 detach_reset=True,
+                att_mode=att_mode,
                 # other use default parameters   
             )
             for _ in range(temporal_depth)
