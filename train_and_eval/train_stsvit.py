@@ -198,7 +198,7 @@ def main():
         num_classes=20,
         spatial_depth=args.spatial_depth,
         temporal_depth=args.temporal_depth,
-        att_mode=args.attn_mode,
+        att_mode=args.att_mode,
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
