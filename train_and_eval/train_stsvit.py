@@ -41,6 +41,8 @@ def get_args():
     parser.add_argument('--checkpoint_path', type=str, 
                         default='/kaggle/working/spike_tsvit_checkpoint.pth',
                         help='Full path to save the best model checkpoint')
+    parser.add_argument('--resume', type=str, default=None, help="Path to a checkpoint (.pth) to resume training from")
+
     # Hyperparameters
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
     parser.add_argument('--epochs', type=int, default=15, help='Number of epochs')
@@ -142,6 +144,8 @@ def main():
     print(f"   CSV Path:        {args.csv_path}")
     print(f"   Data Root:       {args.data_root}")
     print(f"   Checkpoint Path: {args.checkpoint_path}")
+    if args.resume:
+        print(f"   Resume From:     {args.resume}")
 
     # Hyperparameters
     print(f"\n⚙️  Hyperparameters:")
@@ -205,9 +209,30 @@ def main():
     criterion = nn.CrossEntropyLoss() 
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
 
-    # 3. Training loop
+    # --- 3. RESUME LOGIC ---
+    start_epoch = 0
     best_score = 0.0
-    for epoch in range(args.epochs):
+
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print(f"🔄 Loading checkpoint '{args.resume}'...")
+            checkpoint = torch.load(args.resume, map_location=device)
+
+            # Load states
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            # load epoch and score
+            start_epoch = checkpoint['epoch'] + 1
+            best_score = checkpoint.get('best_score', 0.0)
+            print(f"✅ Loaded checkpoint (Epoch {start_epoch}, Best mIoU: {best_score:.4f})")
+        else:
+            print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
+    
+
+
+    # Training loop
+    for epoch in range(start_epoch, args.epochs):
         train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, accum_steps=args.grad_accum_steps, disable_tqdm=args.no_progress_bar)
         val_miou = evaluate(model, val_loader, metric, device, disable_tqdm=args.no_progress_bar)
 
