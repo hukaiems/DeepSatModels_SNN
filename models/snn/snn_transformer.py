@@ -457,7 +457,7 @@ class TemporalSpikingTransformer(nn.Module):
         # reshape back
         x = x.squeeze(0).squeeze(-1)
         x = x.view(B, H, W, C_out, T)
-        x = x.permute(4, 0, 3, 1, 2).contiguous() #permute use indices
+        x = x.permute(4, 0, 3, 1, 2).contiguous() #permute use indices  Shape: T, B, C_out, H, W
         
         return x
 
