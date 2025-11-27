@@ -57,6 +57,8 @@ def get_args():
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
+    parser.add_argument('--use_weighted_loss', action='store_true', 
+                        help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")
 
     # Attention Mode
     parser.add_argument('--att_mode', type=str, default='2D_dot', choices=['2D_dot', '2D_ham'], 
@@ -215,7 +217,21 @@ def main():
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    criterion = nn.CrossEntropyLoss() 
+
+    # class weights logic
+    if args.use_weighted_loss:
+        print("⚖️ Mode: Class Weighted Loss (Punishing mistakes on crops!)")
+        
+        # Create weights: Background (0) = 1.0, Crops (1-19) = 5.0
+        class_weights = torch.ones(20) * 5.0 
+        class_weights[0] = 1.0
+        class_weights = class_weights.to(device)
+        
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+    else:
+        print("⚖️ Mode: Standard Loss (Flat weights)")
+        criterion = nn.CrossEntropyLoss()
+
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
