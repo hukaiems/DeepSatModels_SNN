@@ -246,7 +246,10 @@ def main():
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
     
-
+    # Early stopping logic
+    early_stopping_patience = 10
+    early_stopping_counter = 0
+    early_spopping_delta = 0.001
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
@@ -267,10 +270,19 @@ def main():
         }
 
         # Save Best (Weights Only is fine, or Full Dict)
-        if val_miou > best_score:
+        if val_miou > (best_score + early_stopping_delta):
+            early_stopping_counter = 0
             best_score = val_miou
             torch.save(model.state_dict(), args.checkpoint_path)
             print(f"   🎉 New Best Model Saved! (mIoU: {best_score:.4f})")
+        else:
+            early_stopping_counter += 1
+            print(f"   ⏳ No improvement. Patience: {early_stopping_counter}/{early_stopping_patience}")
+            # kill switch
+            if early_stopping_counter >= early_stopping_patience:
+                print(f"   🛑 Early Stopping Triggered! Model hasn't improved for {early_stopping_patience} epochs.")
+                break
+
 
         # Save Latest (Full Dict for Resuming)
         latest_path = args.checkpoint_path.replace('.pth', '_latest.pth')
