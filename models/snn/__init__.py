@@ -12,12 +12,13 @@ from .snn_transformer import (
 )
 
 # 3. Import from neighbor file spike_tsvit.py
-from .spike_tsvit import SpikeTSViT
+from .spike_tsvit import SpikeTSViTNoMean, SpikeTSViTMean
 
 # 4. Export them
 __all__ = [
     'RecurrentSpikingEncoder', 
     'TemporalSpikingTransformer', 
     'MS_Block', 
-    'SpikeTSViT'
+    'SpikeTSViTMean',
+    'SpikeTSViTNoMean',
 ]
