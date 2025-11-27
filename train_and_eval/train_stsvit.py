@@ -209,6 +209,14 @@ def main():
     criterion = nn.CrossEntropyLoss() 
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
 
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateu(
+        optimizer,
+        mode='max',
+        factor=0.5,   # cut it by half
+        patience=3,   # wait for 3 epochs
+        verbose=True,   
+    )
+
     # --- 3. RESUME LOGIC ---
     start_epoch = 0
     best_score = 0.0
@@ -235,6 +243,9 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, accum_steps=args.grad_accum_steps, disable_tqdm=args.no_progress_bar)
         val_miou = evaluate(model, val_loader, metric, device, disable_tqdm=args.no_progress_bar)
+        
+        # apply scheduler
+        scheduler.step(val_miou)
 
         print(f"Epoch {epoch+1}/{args.epochs} | Loss: {train_loss:.4f} | Val mIoU: {val_miou:.4f}")
 
