@@ -196,7 +196,7 @@ def main():
     )
 
     # 2. Model Setup
-    model = SpikeTSViT(
+    model = SpikeTSViTNoMean(
         in_channels=10,
         embed_dim=args.embed_dim,
         num_classes=20,
