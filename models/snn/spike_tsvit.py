@@ -103,9 +103,10 @@ class SpikeTSViTNoMean(nn.Module):
 
         # 2 spatial encoder
         for block in self.spatial_encoder:
-            x = block(x)
+            x = block(x)   # Shape: T, B, C, H, W
         
-        x = x.squeeze(0) # B, C_Out, H, W
+        # now collapsing T dim to perform the prediction
+        x = x.mean(0) # B, C_Out, H, W
         logits = self.decoder(x)
 
         return logits
