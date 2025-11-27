@@ -209,7 +209,7 @@ def main():
     criterion = nn.CrossEntropyLoss() 
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateu(
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode='max',
         factor=0.5,   # cut it by half
