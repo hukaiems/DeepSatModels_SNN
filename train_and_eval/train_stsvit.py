@@ -56,6 +56,7 @@ def get_args():
     parser.add_argument('--temporal_depth', type=int, default=1, help='Number of temporal blocks')
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
+    parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
 
     # Attention Mode
     parser.add_argument('--att_mode', type=str, default='2D_dot', choices=['2D_dot', '2D_ham'], 
@@ -156,6 +157,14 @@ def main():
 
     # Model Architecture
     print(f"\n🧠 Model Architecture:")
+
+    if args.model_type == 'mean':
+        ModelType = SpikeTSViTMean
+        print(f"🧠 Model Selected: SpikeTSViTMean (Using Global Average Pooling)")
+    else:
+        ModelType = SpikeTSViTNoMean
+        print(f"🧠 Model Selected: SpikeTSViTNoMean (Full Temporal Processing)")
+
     print(f"   Embedding Dim:   {args.embed_dim}")
     print(f"   Attention Heads: {args.heads}")
     print(f"   Temporal Depth:  {args.temporal_depth}")
@@ -196,7 +205,7 @@ def main():
     )
 
     # 2. Model Setup
-    model = SpikeTSViTNoMean(
+    model = ModelType(
         in_channels=10,
         embed_dim=args.embed_dim,
         num_classes=20,
