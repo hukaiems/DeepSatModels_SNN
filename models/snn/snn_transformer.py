@@ -6,6 +6,7 @@ import torch.nn as nn
 from spikingjelly.clock_driven.neuron import (
     MultiStepLIFNode,
 )
+from spikingjelly.activation_based import surrogate
 import torch.nn.functional as F
 from timm.models.layers import DropPath
 
@@ -127,7 +128,7 @@ class MS_Downsampling(nn.Module):
         # lif only activate if not first layer
         if not first_layer:
             self.encode_lif = MultiStepLIFNode(
-                tau=2.0, detach_reset=detach_reset, backend='cupy'
+                tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan() 
             )
 
     def forward(self, x):
@@ -172,7 +173,7 @@ class MS_Attention_RepConv(nn.Module):
 
         # the encoder neuron
         self.head_lif = MultiStepLIFNode( #with keyword, order doesn matter
-            tau=2.0, detach_reset=detach_reset, backend='cupy'
+            tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # Q, K, V matricies
@@ -182,27 +183,27 @@ class MS_Attention_RepConv(nn.Module):
 
         # now turn those QKV back to spike matrices
         self.q_lif = MultiStepLIFNode(
-            tau=2.0, detach_reset=detach_reset, backend="cupy"
+            tau=2.0, detach_reset=detach_reset, backend="cupy", surrogate_function=surrogate.ATan()
         )
 
         self.k_lif = MultiStepLIFNode(
-            tau=2.0, detach_reset=detach_reset, backend='cupy'
+            tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         self.v_lif = MultiStepLIFNode(
-            tau=2.0, detach_reset=detach_reset, backend='cupy'
+            tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # a neuron to perform attention
         # the attn_lif will have 2 modes for dot and hamming
         if self.sim_mode =='dot':
             self.attn_lif = MultiStepLIFNode(
-                tau=2.0, detach_reset=detach_reset, backend='cupy', v_threshold=0.5
+                tau=2.0, detach_reset=detach_reset, backend='cupy', v_threshold=0.5, surrogate_function=surrogate.ATan()
             )
         elif self.sim_mode == 'hamming':
             self.attn_bn = nn.BatchNorm2d(dim)
             self.attn_lif = MultiStepLIFNode(
-                tau=2.0, detach_reset=detach_reset, v_threshold=1.0, v_reset=0.0,
+                tau=2.0, detach_reset=detach_reset, v_threshold=1.0, v_reset=0.0, surrogate_function=surrogate.ATan()
             )
         else: 
             raise NotImplementedError
@@ -297,14 +298,14 @@ class MS_MLP(nn.Module):
         self.fc1_conv = nn.Conv1d(in_features, hidden_features, kernel_size=1, stride=1) # this layer will expand the attention map
         self.fc1_bn = nn.BatchNorm1d(hidden_features)  # put in the correct dim 
         self.fc1_lif = MultiStepLIFNode(  # turn into spike again
-            detach_reset=detach_reset, tau=2.0, backend='cupy'
+            detach_reset=detach_reset, tau=2.0, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # the second block of MLP
         self.fc2_conv = nn.Conv1d(hidden_features, out_features, kernel_size=1, stride=1)
         self.fc2_bn = nn.BatchNorm1d(out_features)
         self.fc2_lif = MultiStepLIFNode(
-            detach_reset=detach_reset, tau=2.0, backend='cupy'
+            detach_reset=detach_reset, tau=2.0, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # save the variables 
