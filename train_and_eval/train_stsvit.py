@@ -249,7 +249,7 @@ def main():
     # Early stopping logic
     early_stopping_patience = 10
     early_stopping_counter = 0
-    early_spopping_delta = 0.001
+    early_stopping_delta = 0.001
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
