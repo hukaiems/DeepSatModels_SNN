@@ -277,14 +277,6 @@ def main():
 
         print(f"Epoch {epoch+1}/{args.epochs} | Loss: {train_loss:.4f} | Val mIoU: {val_miou:.4f}")
 
-        # Create a full checkpoint dictionary
-        checkpoint_dict = {
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'best_score': best_score,
-        }
-
         # Save Best (Weights Only is fine, or Full Dict)
         if val_miou > (best_score + early_stopping_delta):
             early_stopping_counter = 0
@@ -299,6 +291,13 @@ def main():
                 print(f"   🛑 Early Stopping Triggered! Model hasn't improved for {early_stopping_patience} epochs.")
                 break
 
+        # Create a full checkpoint dictionary
+        checkpoint_dict = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_score': best_score,
+        }
 
         # Save Latest (Full Dict for Resuming)
         latest_path = args.checkpoint_path.replace('.pth', '_latest.pth')
