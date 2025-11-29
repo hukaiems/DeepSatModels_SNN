@@ -37,7 +37,7 @@ class NormAndPadLayer(nn.Module):
     # post padding, BN->padding
     def forward(self, input):
         if self.norm_type == 'bn':
-            output = self.bn(input)
+            output = self.norm(input)
 
             # calculating the values
             if self.pad_pixels > 0:
