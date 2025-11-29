@@ -59,6 +59,9 @@ def get_args():
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
     parser.add_argument('--use_weighted_loss', action='store_true', 
                         help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")
+    parser.add_argument('--norm_type', type=str, default='gn', 
+                        choices=['bn', 'gn'],
+                        help="Normalization layer: 'bn' (Batch Norm) or 'gn' (Group Norm / Layer Norm)")
 
     # Attention Mode
     parser.add_argument('--att_mode', type=str, default='2D_dot', choices=['2D_dot', '2D_ham'], 
@@ -214,6 +217,7 @@ def main():
         spatial_depth=args.spatial_depth,
         temporal_depth=args.temporal_depth,
         att_mode=args.att_mode,
+        norm_type=args.norm_type,
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)

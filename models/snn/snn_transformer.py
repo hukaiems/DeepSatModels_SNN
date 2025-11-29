@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from timm.models.layers import DropPath
 
 # BN for the RepConv because pad 0 will different after BN so to make test and train consistent we use this func
-class BNAndPadLayer(nn.Module):
+class NormAndPadLayer(nn.Module):
     def __init__(
         self,
         pad_pixels, #the number of pixels to add to become the pad
@@ -19,55 +19,74 @@ class BNAndPadLayer(nn.Module):
         eps=1e-5, # epsilon, tiny number for the formula to not crash
         momentum=0.1, # how fast layer learns
         affine=True,  # can shift data when normalization
-        track_running_stats=True # keep running average for inference.
+        track_running_stats=True, # keep running average for inference.
+        norm_type='bn',
     ):
         super().__init__()
         self.bn = nn.BatchNorm2d(
             num_features, eps, momentum, affine, track_running_stats
         )
         self.pad_pixels = pad_pixels
+
+        if norm_type == 'bn':
+            self.norm.eps = eps
+            self.norm.momentum = momentum
+            self.norm.affine = affine
+            self.norm.track_running_stats = track_running_stats
     
     # post padding, BN->padding
     def forward(self, input):
-        output = self.bn(input)
+        if self.norm_type == 'bn':
+            output = self.bn(input)
 
-        # calculating the values
-        if self.pad_pixels > 0:
-            if self.bn.affine:
-                pad_values = (
-                    self.bn.bias.detach()
-                    - self.bn.running_mean
-                    * self.bn.weight.detach()
-                    / torch.sqrt(self.bn.running_var + self.bn.eps)
-                )
-            else:
-                pad_values = -self.bn.running_mean / torch.sqrt(
-                    self.bn.running_var + self.bn.eps
-                )
-            output = F.pad(output, [self.pad_pixels] * 4)
-            # put the values 0 after BN into the pad
-            pad_values = pad_values.view(1, -1, 1, 1)
-            output[:, :, 0 : self.pad_pixels, :] = pad_values
-            output[:, :, -self.pad_pixels :, :] = pad_values
-            output[:, :, :, 0 : self.pad_pixels] = pad_values
-            output[:, :, :, -self.pad_pixels :] = pad_values
-        return output
+            # calculating the values
+            if self.pad_pixels > 0:
+                if self.norm.affine:
+                    pad_values = (
+                        self.norm.bias.detach()
+                        - self.norm.running_mean
+                        * self.norm.weight.detach()
+                        / torch.sqrt(self.norm.running_var + self.norm.eps)
+                    )
+                else:
+                    pad_values = -self.norm.running_mean / torch.sqrt(
+                        self.norm.running_var + self.norm.eps
+                    )
+                output = F.pad(output, [self.pad_pixels] * 4)
+                # put the values 0 after BN into the pad
+                pad_values = pad_values.view(1, -1, 1, 1)
+                output[:, :, 0 : self.pad_pixels, :] = pad_values
+                output[:, :, -self.pad_pixels :, :] = pad_values
+                output[:, :, :, 0 : self.pad_pixels] = pad_values
+                output[:, :, :, -self.pad_pixels :] = pad_values
+        
+            return output
+        # PAD first for Group Norm
+        else:
+            if self.pad_pixels > 0:
+                # Pad with 0 first
+                # GN handles each image individually
+                # The 0 values will stay the same after normalized.
+                input = F.pad(input, [self.pad_pixels] * 4, value=0.0)
+            output = self.norm(input)
+            return output
+
 
     @property
     def weight(self):
-        return self.bn.bias
+        return self.norm.bias
 
     @property
     def bias(self):
-        return self.bn.bias
+        return self.norm.bias
 
     @property
     def running_var(self):
-        return self.bn.running_var
+        return self.norm.running_var
 
     @property
     def eps(self):
-        return self.bn.eps
+        return self.norm.eps
 
 # Reparameterization Conv, complex does training but simple for inferencing
 class RepConv(nn.Module):
@@ -76,15 +95,16 @@ class RepConv(nn.Module):
         in_channels,
         out_channels,
         bias=False,
+        norm_type='bn',
     ):
         super().__init__()
         # hidden_channel = in_channel
         conv1x1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, bias=False)
-        bn = BNAndPadLayer(pad_pixels=1, num_features=in_channels)
+        bn = NormAndPadLayer(pad_pixels=1, num_features=in_channels, norm_type=norm_type)
         conv3x3 = nn.Sequential(
             nn.Conv2d(in_channels, in_channels, kernel_size=3, groups=in_channels, bias=False),
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            get_norm_layer_2d(norm_type, out_channels),
         )
 
         self.body = nn.Sequential(conv1x1, bn, conv3x3)
@@ -95,54 +115,6 @@ class RepConv(nn.Module):
 
 # a down sampling class has in- out, detach, kernel, stride, pad
 # this one has first_layer bool too.
-
-class MS_Downsampling(nn.Module):
-    def __init__(
-        self,
-        detach_reset=True,
-        in_channels=2,
-        embed_dims=256,
-        kernel_size=3,
-        stride=2,
-        padding=1, # for every pixel get centered
-        first_layer = True,
-    ):
-        super().__init__() # hierachy from parent class (nn.Module)
-
-        # common downsampling is conv->bn->activation
-        # bn to center data at a value(like 0) then learn to which value to center is the best
-        # activation then put them in a range for non linearity.
-
-        # conv
-        self.encode_conv = nn.Conv2d(
-            in_channels=in_channels, # same name then no need = if value dont need to change
-            embed_dims=embed_dims,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-        )
-
-        # bn
-        self.bn = nn.BatchNorm2d(embed_dims)
-
-        # lif only activate if not first layer
-        if not first_layer:
-            self.encode_lif = MultiStepLIFNode(
-                tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan() 
-            )
-
-    def forward(self, x):
-        T, B, _, H, W = x.shape
-
-        # check if second layer
-        if hasattr(self, 'encode_lif'):
-            x = self.encode_lif(x)
-
-        x = self.encode_conv(x.flatten(0, 1)) # conv process B first so merge T into B
-        # bn -> reshape 5d -> contiguous
-        x = self.bn(x).reshape(T, B, -1, H, W).contiguous()
-
-        return x
     
 "MS_Attention_RepConv - 2d attention"
 class MS_Attention_RepConv(nn.Module):
@@ -158,7 +130,9 @@ class MS_Attention_RepConv(nn.Module):
 
         attn_drop=0.0,
         proj_drop=0.0,   # usually be applied in the final output of the attn block.
-        sr_ratio=1.0
+        sr_ratio=1.0,
+
+        norm_type='bn',
     ):
         super().__init__()
         assert(
@@ -171,15 +145,17 @@ class MS_Attention_RepConv(nn.Module):
         self.scale = 0.125 # scaling down final output of attn
         self.sim_mode = sim_mode
 
+        self.bn_2d = get_norm_layer_2d(norm_type, dim)
+
         # the encoder neuron
         self.head_lif = MultiStepLIFNode( #with keyword, order doesn matter
             tau=2.0, detach_reset=detach_reset, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # Q, K, V matricies
-        self.q_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
-        self.k_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
-        self.v_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
+        self.q_conv = nn.Sequential(RepConv(dim, dim, bias=False, norm_type=norm_type), self.bn_2d)
+        self.k_conv = nn.Sequential(RepConv(dim, dim, bias=False, norm_type=norm_type), self.bn_2d)
+        self.v_conv = nn.Sequential(RepConv(dim, dim, bias=False, norm_type=norm_type), self.bn_2d)
 
         # now turn those QKV back to spike matrices
         self.q_lif = MultiStepLIFNode(
@@ -210,7 +186,7 @@ class MS_Attention_RepConv(nn.Module):
 
         self.proj_conv = nn.Sequential(
             RepConv(dim, dim, bias=False),
-            nn.BatchNorm2d(dim),
+            self.bn_2d,
         )
 
     def forward(self, x):
@@ -287,6 +263,7 @@ class MS_MLP(nn.Module):
         out_features=None,
         detach_reset=True,
         drop=0.0,
+        norm_type=norm_type,
     ):
         super().__init__()
 
@@ -296,14 +273,14 @@ class MS_MLP(nn.Module):
 
         # first MLP block
         self.fc1_conv = nn.Conv1d(in_features, hidden_features, kernel_size=1, stride=1) # this layer will expand the attention map
-        self.fc1_bn = nn.BatchNorm1d(hidden_features)  # put in the correct dim 
+        self.fc1_bn = get_norm_layer_1d(norm_type, hidden_features)  # put in the correct dim 
         self.fc1_lif = MultiStepLIFNode(  # turn into spike again
             detach_reset=detach_reset, tau=2.0, backend='cupy', surrogate_function=surrogate.ATan()
         )
 
         # the second block of MLP
         self.fc2_conv = nn.Conv1d(hidden_features, out_features, kernel_size=1, stride=1)
-        self.fc2_bn = nn.BatchNorm1d(out_features)
+        self.fc2_bn = get_norm_layer_1d(norm_type, out_features)
         self.fc2_lif = MultiStepLIFNode(
             detach_reset=detach_reset, tau=2.0, backend='cupy', surrogate_function=surrogate.ATan()
         )
@@ -344,6 +321,7 @@ class MS_Block(nn.Module):
         norm_layer=nn.LayerNorm,
         sr_ratio = 1.0,
         att_mode="2D_dot", # attn mode cause the model has 3 modes
+        norm_type='bn',
     ):
         super().__init__()
 
@@ -360,6 +338,7 @@ class MS_Block(nn.Module):
                 proj_drop=drop,
                 sr_ratio=sr_ratio,
                 sim_mode='dot',
+                norm_type=norm_type,
             )
         elif att_mode == '2D_ham':
             self.attn = MS_Attention_RepConv(
@@ -372,6 +351,7 @@ class MS_Block(nn.Module):
                 proj_drop=drop,
                 sr_ratio=sr_ratio,
                 sim_mode='hamming',
+                norm_type=norm_type,
             )
         # currently not implementing those other attention
         else:
@@ -385,6 +365,7 @@ class MS_Block(nn.Module):
             hidden_features=mlp_hidden_dim,
             detach_reset=detach_reset,
             drop=drop,
+            norm_type=norm_type,
         )
 
     def forward(self, x):
@@ -404,14 +385,18 @@ class TemporalSpikingTransformer(nn.Module):
         num_heads=8,
         temporal_depth=1,
         att_mode='2D_dot',
+        norm_type='bn',
     ):
         super().__init__()
+
+        self.bn_2d = get_norm_layer_2d(norm_type, out_channels)
+
         # use PE library
         self.pe_date = nn.Embedding(num_embeddings=366, embedding_dim=pe_dim)
         # embedding layer
         self.embedding = nn.Sequential(
             nn.Conv2d(in_channels + pe_dim, out_channels, kernel_size=1),
-            nn.BatchNorm2d(out_channels)
+            self.bn_2d
         )
 
         # attention_layer
@@ -421,6 +406,7 @@ class TemporalSpikingTransformer(nn.Module):
                 num_heads=num_heads,
                 detach_reset=True,
                 att_mode=att_mode,
+                norm_type=norm_type,
                 # other use default parameters   
             )
             for _ in range(temporal_depth)

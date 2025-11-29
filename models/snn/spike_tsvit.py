@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from .snn_transformer import MS_Block, TemporalSpikingTransformer
+from .helper_functions import get_norm_layer_1d, get_norm_layer_2d
 
 "the normal testing "
 class SpikeTSViTMean(nn.Module):
@@ -12,20 +13,25 @@ class SpikeTSViTMean(nn.Module):
         spatial_depth=1,
         num_classes=20,
         att_mode="2D_dot",
+        norm_type='bn',
     ):
         super().__init__()
+
+        self.bn_2d = get_norm_layer_2d(norm_type, embed_dim)
 
         self.temporal_encoder = TemporalSpikingTransformer(
             in_channels=in_channels,
             out_channels=embed_dim,
             temporal_depth=temporal_depth,
             att_mode=att_mode,
+            norm_type=norm_type,
         )
 
         self.spatial_encoder = nn.ModuleList([
             MS_Block( # transformer block keep the shape in and out the same.
                 dim=embed_dim,
-                att_mode=att_mode
+                att_mode=att_mode,
+                norm_type=norm_type
             )
             for _ in range(spatial_depth)
         ])
@@ -35,7 +41,8 @@ class SpikeTSViTMean(nn.Module):
         # Havent down sample H-W so no need for a complex one
         self.decoder = nn.Sequential(  # increase the computation or power to process better
             nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(embed_dim),
+            # nn.BatchNorm2d(embed_dim),
+            self.bn_2d,
             nn.ReLU(), # lets me think later on
             nn.Conv2d(embed_dim, num_classes, kernel_size=1)
         ) 
@@ -67,20 +74,24 @@ class SpikeTSViTNoMean(nn.Module):
         spatial_depth=1,
         num_classes=20,
         att_mode="2D_dot",
+        norm_type='bn',
     ):
         super().__init__()
+        self.bn_2d = get_norm_layer_2d(norm_type, embed_dim)
 
         self.temporal_encoder = TemporalSpikingTransformer(
             in_channels=in_channels,
             out_channels=embed_dim,
             temporal_depth=temporal_depth,
             att_mode=att_mode,
+            norm_type=norm_type,
         )
 
         self.spatial_encoder = nn.ModuleList([
             MS_Block( # transformer block keep the shape in and out the same.
                 dim=embed_dim,
-                att_mode=att_mode
+                att_mode=att_mode,
+                norm_type=norm_type,
             )
             for _ in range(spatial_depth)
         ])
@@ -90,7 +101,7 @@ class SpikeTSViTNoMean(nn.Module):
         # Havent down sample H-W so no need for a complex one
         self.decoder = nn.Sequential(  # increase the computation or power to process better
             nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(embed_dim),
+            self.bn_2d,
             nn.ReLU(), # lets me think later on
             nn.Conv2d(embed_dim, num_classes, kernel_size=1)
         ) 
