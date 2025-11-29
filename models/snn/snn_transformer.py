@@ -9,6 +9,7 @@ from spikingjelly.clock_driven.neuron import (
 from spikingjelly.activation_based import surrogate
 import torch.nn.functional as F
 from timm.models.layers import DropPath
+from .helper_functions import get_norm_layer_1d, get_norm_layer_2d
 
 # BN for the RepConv because pad 0 will different after BN so to make test and train consistent we use this func
 class NormAndPadLayer(nn.Module):
