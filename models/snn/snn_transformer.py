@@ -24,9 +24,8 @@ class NormAndPadLayer(nn.Module):
         norm_type='bn',
     ):
         super().__init__()
-        self.bn = nn.BatchNorm2d(
-            num_features, eps, momentum, affine, track_running_stats
-        )
+        self.norm_type = norm_type
+        self.norm = get_norm_layer_2d(norm_type, num_features)
         self.pad_pixels = pad_pixels
 
         if norm_type == 'bn':
@@ -75,7 +74,7 @@ class NormAndPadLayer(nn.Module):
 
     @property
     def weight(self):
-        return self.norm.bias
+        return self.norm.weight
 
     @property
     def bias(self):
