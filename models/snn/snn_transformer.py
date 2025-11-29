@@ -263,7 +263,7 @@ class MS_MLP(nn.Module):
         out_features=None,
         detach_reset=True,
         drop=0.0,
-        norm_type=norm_type,
+        norm_type='bn',
     ):
         super().__init__()
 

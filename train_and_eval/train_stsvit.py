@@ -170,6 +170,12 @@ def main():
         ModelType = SpikeTSViTNoMean
         print(f"🧠 Model Selected: SpikeTSViTNoMean (Full Temporal Processing)")
 
+    # Norm_type
+    if args.norm_type == 'bn':
+        print(f"🧠 Normalization type: BatchNorm.")
+    else:
+        print(f"🧠 Normalization type: GroupNorm.")
+
     print(f"   Embedding Dim:   {args.embed_dim}")
     print(f"   Attention Heads: {args.heads}")
     print(f"   Temporal Depth:  {args.temporal_depth}")
