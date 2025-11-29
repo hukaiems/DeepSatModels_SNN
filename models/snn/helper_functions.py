@@ -29,7 +29,7 @@ def get_norm_layer_1d(norm_type, channels):
             
     elif norm_type == 'gn':
         # ✅ For 1D Vectors: LayerNorm is safer (handles flat inputs)
-        return nn.LayerNorm(channels)
+        return nn.GroupNorm(num_groups=1, num_channels=channels)
             
     else:
         raise NotImplementedError
