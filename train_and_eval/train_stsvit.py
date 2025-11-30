@@ -58,7 +58,7 @@ def get_args():
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
     parser.add_argument('--use_weighted_loss', action='store_true', 
-                        help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")
+                        help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")   
     parser.add_argument('--norm_type', type=str, default='gn', 
                         choices=['bn', 'gn'],
                         help="Normalization layer: 'bn' (Batch Norm) or 'gn' (Group Norm / Layer Norm)")

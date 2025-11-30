@@ -177,9 +177,9 @@ class MS_Attention_RepConv(nn.Module):
                 tau=2.0, detach_reset=detach_reset, backend='cupy', v_threshold=0.5, surrogate_function=surrogate.ATan()
             )
         elif self.sim_mode == 'hamming':
-            self.attn_bn = nn.BatchNorm2d(dim)
+            self.attn_bn = get_norm_layer_2d(norm_type, dim)
             self.attn_lif = MultiStepLIFNode(
-                tau=2.0, detach_reset=detach_reset, v_threshold=1.0, v_reset=0.0, surrogate_function=surrogate.ATan()
+                tau=2.0, detach_reset=detach_reset, v_threshold=0.5, v_reset=0.0, surrogate_function=surrogate.ATan() #change thres to 0.5 too origin is 1.0
             )
         else: 
             raise NotImplementedError
