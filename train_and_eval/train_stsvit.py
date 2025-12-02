@@ -254,7 +254,7 @@ def main():
 
     # --- 3. RESUME LOGIC ---
     start_epoch = 0
-    best_score = 0.0v
+    best_score = 0.0
     # Early stopping logic
     early_stopping_patience = 10
     early_stopping_counter = 0
