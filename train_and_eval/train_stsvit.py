@@ -246,6 +246,11 @@ def main():
     start_epoch = 0
     best_score = 0.0
 
+    # Early stopping logic
+    early_stopping_patience = 10
+    early_stopping_counter = 0
+    early_stopping_delta = 0.001
+
     if args.resume:
         if os.path.isfile(args.resume):
             print(f"🔄 Loading checkpoint '{args.resume}'...")
@@ -258,14 +263,12 @@ def main():
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
             best_score = checkpoint.get('best_score', 0.0)
+            early_stopping_counter = checkpoint.get('early_stopping_counter', 0)
             print(f"✅ Loaded checkpoint (Epoch {start_epoch}, Best mIoU: {best_score:.4f})")
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
     
-    # Early stopping logic
-    early_stopping_patience = 10
-    early_stopping_counter = 0
-    early_stopping_delta = 0.001
+
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
@@ -297,6 +300,7 @@ def main():
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_score': best_score,
+            'early_stopping_counter': early_stopping_counter,
         }
 
         # Save Latest (Full Dict for Resuming)
