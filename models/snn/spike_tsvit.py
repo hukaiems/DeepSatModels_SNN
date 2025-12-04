@@ -14,6 +14,7 @@ class SpikeTSViTMean(nn.Module):
         num_classes=20,
         att_mode="2D_dot",
         norm_type='bn',
+        num_heads=8,
     ):
         super().__init__()
 
@@ -25,13 +26,15 @@ class SpikeTSViTMean(nn.Module):
             temporal_depth=temporal_depth,
             att_mode=att_mode,
             norm_type=norm_type,
+            num_heads=num_heads,
         )
 
         self.spatial_encoder = nn.ModuleList([
             MS_Block( # transformer block keep the shape in and out the same.
                 dim=embed_dim,
                 att_mode=att_mode,
-                norm_type=norm_type
+                norm_type=norm_type,
+                num_heads
             )
             for _ in range(spatial_depth)
         ])
@@ -75,6 +78,7 @@ class SpikeTSViTNoMean(nn.Module):
         num_classes=20,
         att_mode="2D_dot",
         norm_type='bn',
+        num_heads=8,
     ):
         super().__init__()
         self.bn_2d = get_norm_layer_2d(norm_type, embed_dim)
@@ -85,6 +89,7 @@ class SpikeTSViTNoMean(nn.Module):
             temporal_depth=temporal_depth,
             att_mode=att_mode,
             norm_type=norm_type,
+            num_heads=num_heads,
         )
 
         self.spatial_encoder = nn.ModuleList([
@@ -92,6 +97,7 @@ class SpikeTSViTNoMean(nn.Module):
                 dim=embed_dim,
                 att_mode=att_mode,
                 norm_type=norm_type,
+                num_heads=num_heads,
             )
             for _ in range(spatial_depth)
         ])
