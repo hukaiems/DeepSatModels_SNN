@@ -21,12 +21,12 @@ import torch.optim as optim  # optimizer lib like adam, sgd, ...
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
 
 from spike_data.pastis_dataset import PastisDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
+from models.snn.helper_functions import measure_energy_efficiency_full
 
 # --- ARGUMENT PARSER ---
 def get_args():
