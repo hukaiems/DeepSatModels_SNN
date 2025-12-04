@@ -153,7 +153,7 @@ def main():
     # This runs BEFORE the accuracy loop. It pushes data through,
     # counts spikes, and prints the "15x Efficiency" stat.
     # ---------------------------------------------------------
-    measure_energy_efficiency_full(model, test_loader, device)
+    measure_energy_efficiency_full(model, val_loader, device)
 
     # ---------------------------------------------------------
     # 🎯 PHASE 2: Accuracy Evaluation (mIoU)
@@ -162,7 +162,7 @@ def main():
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
     
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
+        for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
             x = batch['sequence'].to(device)
             dates = batch['dates'].to(device)
             y = batch['labels'].to(device)
