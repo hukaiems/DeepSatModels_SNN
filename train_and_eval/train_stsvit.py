@@ -224,6 +224,7 @@ def main():
         temporal_depth=args.temporal_depth,
         att_mode=args.att_mode,
         norm_type=args.norm_type,
+        num_heads=args.heads,
     ).to(device)
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
