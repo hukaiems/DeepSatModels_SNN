@@ -39,9 +39,6 @@ def get_args():
 
     # Hyperparameters
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
-    parser.add_argument('--epochs', type=int, default=15, help='Number of epochs')
-    parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
-    parser.add_argument('--grad_accum_steps', type=int, default=1, help="Virtual batch size multiplier")
 
     # Model architecture
     parser.add_argument('--embed_dim', type=int, default=64, help="Embedding dim")
@@ -51,8 +48,6 @@ def get_args():
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
-    parser.add_argument('--use_weighted_loss', action='store_true', 
-                        help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")   
     parser.add_argument('--norm_type', type=str, default='gn', 
                         choices=['bn', 'gn'],
                         help="Normalization layer: 'bn' (Batch Norm) or 'gn' (Group Norm / Layer Norm)")
@@ -86,9 +81,6 @@ def main():
     # Hyperparameters
     print(f"\n⚙️  Hyperparameters:")
     print(f"   Batch Size:      {args.batch_size}")
-    print(f"   Effective Batch Size: {args.batch_size * args.grad_accum_steps}")
-    print(f"   Epochs:          {args.epochs}")
-    print(f"   Learning Rate:   {args.lr}")
 
     # Model Architecture
     print(f"\n🧠 Model Architecture:")
