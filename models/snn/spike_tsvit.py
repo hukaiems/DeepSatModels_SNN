@@ -34,7 +34,7 @@ class SpikeTSViTMean(nn.Module):
                 dim=embed_dim,
                 att_mode=att_mode,
                 norm_type=norm_type,
-                num_heads
+                num_heads=num_heads,
             )
             for _ in range(spatial_depth)
         ])
