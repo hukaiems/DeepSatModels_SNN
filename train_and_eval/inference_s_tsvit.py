@@ -153,7 +153,7 @@ def main():
     # This runs BEFORE the accuracy loop. It pushes data through,
     # counts spikes, and prints the "15x Efficiency" stat.
     # ---------------------------------------------------------
-    measure_energy_efficiency_full(model, val_loader, device)
+    measure_energy_efficiency_full(model, val_loader, device, disable_tqdm=args.no_progress_bar)
 
     # ---------------------------------------------------------
     # 🎯 PHASE 2: Accuracy Evaluation (mIoU)
