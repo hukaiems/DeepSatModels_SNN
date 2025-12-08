@@ -35,7 +35,7 @@ def get_args():
     # Paths
     parser.add_argument('--val_csv_path', type=str, default=None, help="Optional: Path to Validation CSV. If None, splits csv_path.")
     parser.add_argument('--data_root', type=str, default="/kaggle/input", help="Root dir of dataset")
-    parser.add_argument('--checkpoint_path', type=str, required=True, help="Path to .pth checkpoint") 
+    parser.add_argument('--checkpoint_path', type=str, required=True, help="Path to .pth checkpoint")   
 
     # Hyperparameters
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
@@ -143,7 +143,7 @@ def main():
     # This runs BEFORE the accuracy loop. It pushes data through,
     # counts spikes, and prints the "15x Efficiency" stat.
     # ---------------------------------------------------------
-    measure_energy_efficiency_full(model, val_loader, device)
+    measure_energy_efficiency_full(model, val_loader, device, disable_tqdm=args.no_progress_bar)
 
     # ---------------------------------------------------------
     # 🎯 PHASE 2: Accuracy Evaluation (mIoU)
