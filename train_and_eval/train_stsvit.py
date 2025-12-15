@@ -42,6 +42,7 @@ def get_args():
                         default='/kaggle/working/spike_tsvit_checkpoint.pth',
                         help='Full path to save the best model checkpoint')
     parser.add_argument('--resume', type=str, default=None, help="Path to a checkpoint (.pth) to resume training from")
+    parser.add_argument('--datasets', type=str, default=None, choices=['pastis', 'france'], help='choose the dataset')
 
     # Hyperparameters
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
@@ -144,6 +145,14 @@ def main():
     print(f"--- 🚀 Starting Training ---")
     print(f"📋 EXPERIMENT CONFIGURATION")
     print(f"{'='*40}")
+    print(f"Datasets: {args.datasets}")
+
+    if args.datasets == 'France':
+        DatasetLoader = FranceDataset
+        print(f"Dataset Selected: France dataset.")
+    else: 
+        DatasetLoader = PastisDataset
+        print(f"Dataset Selected: PASTIS dataset.")
     
     # Paths
     print(f"📂 Paths:")
@@ -203,15 +212,12 @@ def main():
         train_df, val_df = train_test_split(full_df, test_size=0.2, random_state=42)
 
     train_loader = DataLoader(
-        PastisDataset(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
+        DatasetLoader(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
-        # how many imgs process in 1 batch
-        # shuffle indices of samples before creating the batch
-        # workers: number of cpu processes run to load data
     )
 
     val_loader = DataLoader(
-        PastisDataset(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
+        DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
         batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
     )
 
