@@ -62,15 +62,13 @@ class FranceDataset:
         return len(self.df)
     
     def __getitem__(self, idx):
+        TARGET_SIZE = 24
+
         # 1. Find file path
         relative_path = self.df.iloc[idx, 0]
         full_path = os.path.join(self.root_dir, relative_path)
 
         with open(full_path, 'rb') as f:
-
-
-
-            
             sample = pickle.load(f)
         
         # -----------------------------------------------------------
@@ -80,12 +78,12 @@ class FranceDataset:
         for b_name in self.band_names:
             band = torch.tensor(sample[b_name], dtype=torch.float32)
 
-            # Upsample if needed ( up to 48x48)
+            # Upsample and downsample if needed ( up to 24x24)
 
-            if band.shape[-1] != 48:
+            if band.shape[-1] != TARGET_SIZE:
                 # interpolate lib works with 4D - (B, C, H, W)
                 band = band.unsqueeze(1)  # fake channels
-                band = F.interpolate(band, size=(48, 48), mode='bilinear', align_corners=False) # False align_corners to keep the space as correct in geometry
+                band = F.interpolate(band, size=(TARGET_SIZE, TARGET_SIZE), mode='bilinear', align_corners=False) # False align_corners to keep the space as correct in geometry
                 band = band.squeeze(1)
             
             processed_bands.append(band)
@@ -112,16 +110,16 @@ class FranceDataset:
         
         y = torch.from_numpy(label_remapped).long() # create tensor wrapper for numpy arr
 
-        if y.shape[-1] != 48:
+        if y.shape[-1] != TARGET_SIZE:
             y = y.unsqueeze(0).unsqueeze(0).float()
-            y = F.interpolate(y, size=(48, 48), mode='nearest')
+            y = F.interpolate(y, size=(TARGET_SIZE, TARGET_SIZE), mode='nearest')
             y = y.squeeze().long() # remove all dim with size 1
         
 
         # -----------------------------------------------------------
         # PART D: TIME PADDING (Cut or Pad to max_seq_len)
         # -----------------------------------------------------------
-        # x shape is (T, 13, 48, 48)
+        # x shape is (T, 13, 24, 24)
         current_len = x.shape[0]
         target_len = self.max_seq_len
 
@@ -135,7 +133,7 @@ class FranceDataset:
         else:
             # too short case
             pad_amount = target_len - current_len
-            new_x = torch.zeros(target_len, 13, 48, 48)
+            new_x = torch.zeros(target_len, 13, 24, 24)
             new_x[:current_len] = x
             x = new_x
 
