@@ -142,6 +142,45 @@ class FranceDataset:
             new_dates[:current_len] = dates
             dates = new_dates
 
+        # -----------------------------------------------------------
+        # PART E: Data augmentation
+        # -----------------------------------------------------------
+        if self.mode == 'train':
+
+            # 50 percent chance get flipping
+            # Horizontal flip
+            if random.random() < 0.5:
+                x = torch.flip(x, dims=[-1])
+                y = torch.flip(y, dims=[-1])
+
+            # Vertical flip
+            if random.random() < 0.5:
+                x = torch.flip(x, dims=[-2])
+                y = torch.flip(y, dims=[-2])
+            
+            # 90 degree rotation
+            k = random.randint(0, 3)
+            if k > 0:
+                x = torch.rot90(x, k, dims=[-2, -1])
+                y = torch.rot90(y, k, dims=[-2, -1])
+
+            # Drop random time step
+            if x.shape[0] > 1 and random.random() < 0.3:
+                T = x.shape[0]
+                drop_count = random.randint(1, min(3, T - 1))
+                drop_indices = torch.randperm(T)[:drop_count]
+                x[drop_indices] = 0
+
+            # slightly change brightness
+            if random.random() < 0.3:
+                scale = 0.9 + (1.1 - 0.9) * torch.rand(1)
+                x = x * scale
+            
+            # Noise injection (Robustness)
+            if random.random() < 0.2:
+                noise = torch.randn_like(x) * 0.05 # create tensor "x" shape fill with bell curver fvalues
+                x += noise
+
         return {
             'sequence': x,
             'dates': dates,
