@@ -225,7 +225,7 @@ def main():
 
     # 2. Model Setup
     model = ModelType(
-        in_channels=in_channels
+        in_channels=in_channels,
         embed_dim=args.embed_dim,
         num_classes=20,
         spatial_depth=args.spatial_depth,
