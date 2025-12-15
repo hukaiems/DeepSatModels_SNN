@@ -142,4 +142,8 @@ class FranceDataset:
             new_dates[:current_len] = dates
             dates = new_dates
 
-        return x, y, dates
+        return {
+            'sequence': x,
+            'dates': dates,
+            'labels': y
+        }
