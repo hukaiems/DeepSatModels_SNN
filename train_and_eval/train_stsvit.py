@@ -151,10 +151,12 @@ def main():
     if args.datasets == 'france':
         DatasetLoader = FranceDataset
         in_channels = 13
+        num_classes = 21
         print(f"Dataset Selected: France dataset.")
     else: 
         DatasetLoader = PastisDataset
         in_channels = 10
+        num_classes = 20
         print(f"Dataset Selected: PASTIS dataset.")
     
     # Paths
@@ -228,7 +230,7 @@ def main():
     model = ModelType(
         in_channels=in_channels,
         embed_dim=args.embed_dim,
-        num_classes=20,
+        num_classes=num_classes,
         spatial_depth=args.spatial_depth,
         temporal_depth=args.temporal_depth,
         att_mode=args.att_mode,
