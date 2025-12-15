@@ -51,7 +51,7 @@ class FranceDataset:
         """
 
         self.df = pd.read_csv(csv_path, header=None)
-        self.root_dir = root_dir
+        self.root_dir = os.path.join(root_dir, "t31tfm-1618", "T31TFM_1618")
         self.mode = mode
         self.max_seq_len = max_seq_len
 
