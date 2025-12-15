@@ -147,7 +147,7 @@ def main():
     print(f"{'='*40}")
     print(f"Datasets: {args.datasets}")
 
-    if args.datasets == 'France':
+    if args.datasets == 'france':
         DatasetLoader = FranceDataset
         in_channels = 13
         print(f"Dataset Selected: France dataset.")
