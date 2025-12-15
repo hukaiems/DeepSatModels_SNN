@@ -254,7 +254,7 @@ def main():
         print("⚖️ Mode: Standard Loss (Flat weights)")
         criterion = nn.CrossEntropyLoss()
 
-    metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
+    metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro').to(device)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
