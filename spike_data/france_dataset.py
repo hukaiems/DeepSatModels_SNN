@@ -42,7 +42,7 @@ NORM_STD = torch.tensor([
 
 
 class FranceDataset:
-    def __init__(self, csv_path, root_dir, max_seq_len=30, mode='train'):
+    def __init__(self, dataFrame, root_dir, max_seq_len=30, mode='train'):
         """
         Args:
             csv_path (str): Path to the .csv file
@@ -50,7 +50,7 @@ class FranceDataset:
             max_seq_len (int): The time length of each batch.
         """
 
-        self.df = pd.read_csv(csv_path, header=None)
+        self.df = dataFrame
         self.root_dir = os.path.join(root_dir, "t31tfm-1618", "T31TFM_1618")
         self.mode = mode
         self.max_seq_len = max_seq_len
