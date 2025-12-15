@@ -42,7 +42,7 @@ def get_args():
                         default='/kaggle/working/spike_tsvit_checkpoint.pth',
                         help='Full path to save the best model checkpoint')
     parser.add_argument('--resume', type=str, default=None, help="Path to a checkpoint (.pth) to resume training from")
-    parser.add_argument('--datasets', type=str, default=None, choices=['pastis', 'france'], help='choose the dataset')
+    parser.add_argument('--datasets', type=str, default='pastis', choices=['pastis', 'france'], help='choose the dataset')
 
     # Hyperparameters
     parser.add_argument('--batch_size', type=int, default=4, help="Batch size")
