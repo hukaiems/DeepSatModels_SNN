@@ -90,7 +90,6 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         y = batch['labels'].to(device)
 
         # clearGrad->logit->computeLoss->backprobagation->learn->resetLIF
-        optimizer.zero_grad() # clear gradients from previous batch
         logits = model(x, dates)
         loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
 
