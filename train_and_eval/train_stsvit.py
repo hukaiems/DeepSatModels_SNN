@@ -92,13 +92,50 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         y = batch['labels'].to(device)
 
         # clearGrad->logit->computeLoss->backprobagation->learn->resetLIF
-        optimizer.zero_grad() # clear gradients from previous batch
         logits = model(x, dates)
         loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
 
         # 2 Scale loss due to the fact crossentropy cals 4 imgs a time.
         loss = loss / accum_steps
         loss.backward()
+
+        # ==========================================
+        # DIAGNOSTIC: GRADIENT HEALTH CHECK
+        # ==========================================
+        if i == 0:
+            print("\n--- GRADIENT NORM CHECK (Epoch Start) ---")
+
+            total_norm = 0.0
+            layer_norms = {}
+
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    # Calculate L2 norm for this specific layer
+                    param_norm = param.grad.data.norm(2).item()
+                    total_norm += param_norm ** 2
+                    
+                    # Store specific layers to compare Start vs. End
+                    # Adjust 'patch_embed' or 'head' if your variable names differ
+                    if "patch_embed" in name and "weight" in name:
+                        layer_norms["First Layer (Patch Embed)"] = param_norm
+                    elif "head" in name and "weight" in name:
+                        layer_norms["Last Layer (Head)"] = param_norm
+                    elif "blocks.0." in name and "weight" in name and "1" not in layer_norms: # First transformer block
+                        layer_norms["First Block"] = param_norm
+
+            total_norm = total_norm ** 0.5
+            print(f"Total Model Gradient Norm: {total_norm:.6f}")
+
+            for layer, norm in layer_norms.items():
+                status = "OK"
+                if norm == 0.0:
+                    status = "💀 DEAD (Zero)"
+                elif norm < 1e-6:
+                    status = "⚠️ VANISHING (Too Small)"
+                print(f"{layer:<25} | Norm: {norm:.8f} | {status}")
+                
+            # Only print this ONCE per epoch (or every 100 batches) to avoid spamming console
+            # break # Uncomment if you put this in a loop just to check once
 
         # 3. Conditional Update
         if (i + 1) % accum_steps == 0:
