@@ -359,13 +359,24 @@ def main():
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
-    # class weights logic
+    # class weights logic 
     if args.use_weighted_loss:
         print("⚖️ Mode: Class Weighted Loss (Punishing mistakes on crops!)")
         
-        # Create weights: Background (0) = 1.0, Crops (1-19) = 5.0
-        class_weights = torch.ones(20) * 5.0 
+        # Create weights: Background (0) = 1.0
+        class_weights = torch.ones(20)
         class_weights[0] = 1.0
+
+        # punish classes usually have lower mIoU
+        dead_classes = [6, 7, 8, 10, 12, 13, 14, 17, 18]
+        for c in dead_classes:
+            class_weights[c] = 10.0
+        
+        # other classes have moderate boost
+        for c in range(1, 20):
+            if c not in dead_classes and c != 0:
+                class_weights[c] = 3.0
+
         class_weights = class_weights.to(device)
         
         criterion = nn.CrossEntropyLoss(weight=class_weights)
