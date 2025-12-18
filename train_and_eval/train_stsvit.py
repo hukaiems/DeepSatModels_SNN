@@ -263,6 +263,7 @@ def main():
             
     elif args.loss_type == 'focal':
         print("Mode: Focal loss ( Auto Focusing)")
+        print(f"Focal alpha weight: {args.focal_a_weight}")
         alpha_weights = [1.0] + [args.focal_a_weight] * 19
         criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
 
