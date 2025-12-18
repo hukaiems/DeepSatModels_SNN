@@ -175,7 +175,7 @@ def check_class_distribution(dataloader, num_classes=20, device='cuda'):
     for batch in tqdm(dataloader):
         # Assuming batch is (x, y, dates) or (x, y)
         # We just need y. Adjust index if your loader returns something else.
-        targets = batch[1].to(device) 
+        targets = batch['labels'].to(device) 
         
         # Flatten the targets to 1D array of pixels
         # targets shape: [Batch, H, W] -> [Batch * H * W]
@@ -393,7 +393,7 @@ def main():
         DatasetLoader(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
     )
-    
+
     # apply class imbalance debugging
     check_class_distribution(train_loader, num_classes=20)
 
