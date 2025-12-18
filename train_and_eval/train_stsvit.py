@@ -29,6 +29,8 @@ from spike_data.france_dataset import FranceDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
 
+from models.snn.loss_function import FocalLoss
+
 # --- ARGUMENT PARSER ---
 def get_args():
     parser = argparse.ArgumentParser(description="Train SpikeTSViT on PASTIS")
@@ -59,8 +61,9 @@ def get_args():
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
-    parser.add_argument('--use_weighted_loss', action='store_true', 
-                        help="If True, applies higher weights to crop classes (5.0) vs background (1.0)")   
+    parser.add_argument('--loss_type', type=str, default='standard', 
+                        choices=['standard', 'weighted', 'focal'],
+                        help="Choose loss function: 'standard' (CE), 'weighted' (CE + Weights), or 'focal' (Focus on hard examples)")
     parser.add_argument('--norm_type', type=str, default='gn', 
                         choices=['bn', 'gn'],
                         help="Normalization layer: 'bn' (Batch Norm) or 'gn' (Group Norm / Layer Norm)")
@@ -78,141 +81,6 @@ def get_args():
 
 
 # --- HELPER FUNCTIONS ---
-
-import torch
-
-def check_class_imbalance(model, dataloader, device, num_classes=20):
-    model.eval()
-    
-    # 1. Initialize Confusion Matrix (Confusion Matrix = num_classes x num_classes)
-    # Rows = Ground Truth, Columns = Predictions
-    confusion_matrix = torch.zeros(num_classes, num_classes, device=device)
-    
-    print("--- 📊 Analyzing Class Performance ---")
-    
-    with torch.no_grad():
-        for i, batch in enumerate(dataloader):
-            x = batch['sequence'].to(device)
-            dates = batch['dates'].to(device)
-            y = batch['labels'].to(device) # Shape: [Batch, H, W]
-
-            # Forward Pass
-            logits = model(x, dates) 
-            preds = torch.argmax(logits, dim=1) # Shape: [Batch, H, W]
-
-            # 2. Flatten for easy counting
-            y_flat = y.view(-1)
-            preds_flat = preds.view(-1)
-
-            # 3. Filter out ignore_index (usually -1 or 255) if necessary
-            # mask = (y_flat >= 0) & (y_flat < num_classes)
-            # y_flat = y_flat[mask]
-            # preds_flat = preds_flat[mask]
-
-            # 4. Update Confusion Matrix (Vectorized)
-            # This maps (Target, Pred) pairs to a unique index
-            indices = num_classes * y_flat + preds_flat
-            counts = torch.bincount(indices, minlength=num_classes**2)
-            
-            # Reshape back to square matrix and add to total
-            confusion_matrix += counts.view(num_classes, num_classes)
-            
-            # Optional: Stop after 50 batches to save time
-            if i > 50: 
-                break
-
-    # 5. Calculate IoU per class
-    # Intersection = Diagonal elements
-    intersection = torch.diag(confusion_matrix)
-    
-    # Union = Sum of Rows + Sum of Cols - Intersection
-    ground_truth_set = confusion_matrix.sum(dim=1)
-    predicted_set = confusion_matrix.sum(dim=0)
-    union = ground_truth_set + predicted_set - intersection
-
-    # IoU = Intersection / Union
-    iou_per_class = intersection / (union + 1e-6) # Add epsilon to avoid divide by zero
-
-    # 6. Print Results
-    print(f"\n{'Class ID':<10} | {'IoU':<10} | {'Status'}")
-    print("-" * 40)
-    
-    for c in range(num_classes):
-        iou = iou_per_class[c].item()
-        
-        status = ""
-        if iou > 0.7: status = "🌟 Excellent"
-        elif iou < 0.1: status = "⚠️ FAILED (Lazy Model)"
-        elif iou == 0.0: status = "💀 DEAD"
-        
-        # Only print if the class actually exists in the GT
-        if ground_truth_set[c] > 0:
-            print(f"{c:<10} | {iou:.4f}     | {status}")
-            
-    # Calculate Mean IoU
-    valid_classes = iou_per_class[ground_truth_set > 0]
-    print("-" * 40)
-    print(f"Mean IoU: {valid_classes.mean().item():.4f}")
-
-# ================================
-# USAGE
-# ================================
-# check_class_imbalance(model, val_loader, device='cuda', num_classes=20)
-
-
-# ================================
-# CHECK CLASS IMBALANCE
-
-def check_class_distribution(dataloader, num_classes=20, device='cuda'):
-    print("📊 Scanning dataset for class imbalance...")
-    
-    # Initialize counter
-    class_counts = torch.zeros(num_classes).to(device)
-    total_pixels = 0
-    
-    # Iterate over the dataloader
-    # We only need the targets (y)
-    for batch in tqdm(dataloader):
-        # Assuming batch is (x, y, dates) or (x, y)
-        # We just need y. Adjust index if your loader returns something else.
-        targets = batch['labels'].to(device) 
-        
-        # Flatten the targets to 1D array of pixels
-        # targets shape: [Batch, H, W] -> [Batch * H * W]
-        flat_targets = targets.view(-1)
-        
-        # Count occurrences of each class
-        # bincount is very fast on GPU
-        counts = torch.bincount(flat_targets, minlength=num_classes)
-        
-        # Add to total
-        class_counts += counts
-        total_pixels += flat_targets.numel()
-        
-    # Convert to percentages
-    class_counts = class_counts.cpu().numpy()
-    percentages = (class_counts / total_pixels) * 100
-    
-    print("\n--- 📉 Class Distribution Report ---")
-    print(f"{'Class ID':<10} | {'Count':<15} | {'Percentage':<10}")
-    print("-" * 45)
-    
-    for i in range(num_classes):
-        status = ""
-        if percentages[i] > 10.0:
-            status = "🐘 GIANT"
-        elif percentages[i] < 0.1:
-            status = "💀 RARE"
-            
-        print(f"{i:<10} | {int(class_counts[i]):<15} | {percentages[i]:.4f}% {status}")
-        
-    return percentages
-
-# --- HOW TO RUN ---
-# Assuming you have your train_loader defined from your main script
-# stats = check_class_distribution(train_loader, num_classes=20)
-
-
 
 def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False):
     model.train() # set model to train
@@ -234,44 +102,6 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         # 2 Scale loss due to the fact crossentropy cals 4 imgs a time.
         loss = loss / accum_steps
         loss.backward()
-
-        # ==========================================
-        # DIAGNOSTIC: GRADIENT HEALTH CHECK
-        # ==========================================
-        if i == 0:
-            print("\n--- GRADIENT NORM CHECK (Epoch Start) ---")
-
-            total_norm = 0.0
-            layer_norms = {}
-
-            for name, param in model.named_parameters():
-                if param.grad is not None:
-                    # Calculate L2 norm for this specific layer
-                    param_norm = param.grad.data.norm(2).item()
-                    total_norm += param_norm ** 2
-                    
-                    # Store specific layers to compare Start vs. End
-                    # Adjust 'patch_embed' or 'head' if your variable names differ
-                    if "patch_embed" in name and "weight" in name:
-                        layer_norms["First Layer (Patch Embed)"] = param_norm
-                    elif "head" in name and "weight" in name:
-                        layer_norms["Last Layer (Head)"] = param_norm
-                    elif "blocks.0." in name and "weight" in name and "1" not in layer_norms: # First transformer block
-                        layer_norms["First Block"] = param_norm
-
-            total_norm = total_norm ** 0.5
-            print(f"Total Model Gradient Norm: {total_norm:.6f}")
-
-            for layer, norm in layer_norms.items():
-                status = "OK"
-                if norm == 0.0:
-                    status = "💀 DEAD (Zero)"
-                elif norm < 1e-6:
-                    status = "⚠️ VANISHING (Too Small)"
-                print(f"{layer:<25} | Norm: {norm:.8f} | {status}")
-                
-            # Only print this ONCE per epoch (or every 100 batches) to avoid spamming console
-            # break # Uncomment if you put this in a loop just to check once
 
         # 3. Conditional Update
         if (i + 1) % accum_steps == 0:
@@ -394,9 +224,6 @@ def main():
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
     )
 
-    # apply class imbalance debugging
-    check_class_distribution(train_loader, num_classes=20)
-
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
         batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
@@ -417,29 +244,32 @@ def main():
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
     # class weights logic 
-    if args.use_weighted_loss:
-        print("⚖️ Mode: Class Weighted Loss (Punishing mistakes on crops!)")
-        
-        # Create weights: Background (0) = 1.0
-        class_weights = torch.ones(20)
-        class_weights[0] = 1.0
+    if args.loss_type == 'weighted':
+            print("Mode: Class Weighted Loss")
+            
+            # 1. Start with base weight 3.0 for everyone (Moderate Boost)
+            class_weights = torch.full((20,), 3.0) 
+            
+            # 2. Set Background to 1.0 (Low Priority)
+            class_weights[0] = 1.0
+            
+            # 3. Set Dead Classes to 7.0 (High Priority)
+            dead_classes = [6, 7, 8, 10, 12, 13, 14, 17, 18]
+            class_weights[dead_classes] = 7.0 # PyTorch allows indexing with lists!
 
-        # punish classes usually have lower mIoU
-        dead_classes = [6, 7, 8, 10, 12, 13, 14, 17, 18]
-        for c in dead_classes:
-            class_weights[c] = 10.0
-        
-        # other classes have moderate boost
-        for c in range(1, 20):
-            if c not in dead_classes and c != 0:
-                class_weights[c] = 3.0
+            class_weights = class_weights.to(device)
+            criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+            
+    elif args.loss_type == 'focal':
+        print("Mode: Focal loss ( Auto Focusing)")
+        alpha_weights = [1.0] + [2.0] * 19
+        criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
 
-        class_weights = class_weights.to(device)
-        
-        criterion = nn.CrossEntropyLoss(weight=class_weights)
     else:
-        print("⚖️ Mode: Standard Loss (Flat weights)")
+        print("Mode: Standard Loss (Flat weights)")
         criterion = nn.CrossEntropyLoss()
+
+    criterion = criterion.to(device)
 
     metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro').to(device)
 
@@ -476,10 +306,6 @@ def main():
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
     
-
-    print("🔍 Running Class Imbalance Diagnosis...")
-    check_class_imbalance(model, val_loader, device=device, num_classes=20)
-    print("✅ Diagnosis Complete. Starting Training...\n")
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
