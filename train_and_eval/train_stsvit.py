@@ -78,6 +78,88 @@ def get_args():
 
 
 # --- HELPER FUNCTIONS ---
+
+import torch
+
+def check_class_imbalance(model, dataloader, device, num_classes=20):
+    model.eval()
+    
+    # 1. Initialize Confusion Matrix (Confusion Matrix = num_classes x num_classes)
+    # Rows = Ground Truth, Columns = Predictions
+    confusion_matrix = torch.zeros(num_classes, num_classes, device=device)
+    
+    print("--- 📊 Analyzing Class Performance ---")
+    
+    with torch.no_grad():
+        for i, batch in enumerate(dataloader):
+            x = batch['sequence'].to(device)
+            dates = batch['dates'].to(device)
+            y = batch['labels'].to(device) # Shape: [Batch, H, W]
+
+            # Forward Pass
+            logits = model(x, dates) 
+            preds = torch.argmax(logits, dim=1) # Shape: [Batch, H, W]
+
+            # 2. Flatten for easy counting
+            y_flat = y.view(-1)
+            preds_flat = preds.view(-1)
+
+            # 3. Filter out ignore_index (usually -1 or 255) if necessary
+            # mask = (y_flat >= 0) & (y_flat < num_classes)
+            # y_flat = y_flat[mask]
+            # preds_flat = preds_flat[mask]
+
+            # 4. Update Confusion Matrix (Vectorized)
+            # This maps (Target, Pred) pairs to a unique index
+            indices = num_classes * y_flat + preds_flat
+            counts = torch.bincount(indices, minlength=num_classes**2)
+            
+            # Reshape back to square matrix and add to total
+            confusion_matrix += counts.view(num_classes, num_classes)
+            
+            # Optional: Stop after 50 batches to save time
+            if i > 50: 
+                break
+
+    # 5. Calculate IoU per class
+    # Intersection = Diagonal elements
+    intersection = torch.diag(confusion_matrix)
+    
+    # Union = Sum of Rows + Sum of Cols - Intersection
+    ground_truth_set = confusion_matrix.sum(dim=1)
+    predicted_set = confusion_matrix.sum(dim=0)
+    union = ground_truth_set + predicted_set - intersection
+
+    # IoU = Intersection / Union
+    iou_per_class = intersection / (union + 1e-6) # Add epsilon to avoid divide by zero
+
+    # 6. Print Results
+    print(f"\n{'Class ID':<10} | {'IoU':<10} | {'Status'}")
+    print("-" * 40)
+    
+    for c in range(num_classes):
+        iou = iou_per_class[c].item()
+        
+        status = ""
+        if iou > 0.7: status = "🌟 Excellent"
+        elif iou < 0.1: status = "⚠️ FAILED (Lazy Model)"
+        elif iou == 0.0: status = "💀 DEAD"
+        
+        # Only print if the class actually exists in the GT
+        if ground_truth_set[c] > 0:
+            print(f"{c:<10} | {iou:.4f}     | {status}")
+            
+    # Calculate Mean IoU
+    valid_classes = iou_per_class[ground_truth_set > 0]
+    print("-" * 40)
+    print(f"Mean IoU: {valid_classes.mean().item():.4f}")
+
+# ================================
+# USAGE
+# ================================
+# check_class_imbalance(model, val_loader, device='cuda', num_classes=20)
+
+
 def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False):
     model.train() # set model to train
     total_loss = 0.0
@@ -326,6 +408,10 @@ def main():
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
     
+
+    print("🔍 Running Class Imbalance Diagnosis...")
+    check_class_imbalance(model, val_loader, device=device, num_classes=20)
+    print("✅ Diagnosis Complete. Starting Training...\n")
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
