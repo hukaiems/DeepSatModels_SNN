@@ -27,7 +27,7 @@ class FocalLoss(nn.Module):
     def forward(self, inputs, targets):
         # 1 move alpha to device
         if self.alpha is not None and self.alpha.device != inputs.device:
-            self.alpha = self.alpha.to(inputs_device)
+            self.alpha = self.alpha.to(inputs.device)
         
         # 2. Compute Cross Entropy Loss
         # We use log_softmax + nll_loss for stability
