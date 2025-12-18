@@ -64,6 +64,7 @@ def get_args():
     parser.add_argument('--loss_type', type=str, default='standard', 
                         choices=['standard', 'weighted', 'focal'],
                         help="Choose loss function: 'standard' (CE), 'weighted' (CE + Weights), or 'focal' (Focus on hard examples)")
+    parser.add_argument('--focal_a_weight', type=float, default=3.0, help="The alpha weight for focal loss")
     parser.add_argument('--norm_type', type=str, default='gn', 
                         choices=['bn', 'gn'],
                         help="Normalization layer: 'bn' (Batch Norm) or 'gn' (Group Norm / Layer Norm)")
@@ -262,7 +263,7 @@ def main():
             
     elif args.loss_type == 'focal':
         print("Mode: Focal loss ( Auto Focusing)")
-        alpha_weights = [1.0] + [2.0] * 19
+        alpha_weights = [1.0] + [args.focal_a_weight] * 19
         criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
 
     else:
