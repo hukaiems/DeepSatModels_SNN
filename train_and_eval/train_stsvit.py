@@ -163,7 +163,7 @@ def check_class_imbalance(model, dataloader, device, num_classes=21):
 # ================================
 # CHECK CLASS IMBALANCE
 
-def check_class_distribution(dataloader, num_classes=20, device='cuda'):
+def check_class_distribution(dataloader, num_classes=21, device='cuda'):
     print("📊 Scanning dataset for class imbalance...")
     
     # Initialize counter
@@ -395,7 +395,7 @@ def main():
     )
 
     # apply class imbalance debugging
-    check_class_distribution(train_loader, num_classes=20)
+    check_class_distribution(train_loader, num_classes=21)
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
