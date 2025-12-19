@@ -81,7 +81,7 @@ def get_args():
 
 import torch
 
-def check_class_imbalance(model, dataloader, device, num_classes=20):
+def check_class_imbalance(model, dataloader, device, num_classes=21):
     model.eval()
     
     # 1. Initialize Confusion Matrix (Confusion Matrix = num_classes x num_classes)
@@ -478,7 +478,7 @@ def main():
     
 
     print("🔍 Running Class Imbalance Diagnosis...")
-    check_class_imbalance(model, val_loader, device=device, num_classes=20)
+    check_class_imbalance(model, val_loader, device=device, num_classes=21)
     print("✅ Diagnosis Complete. Starting Training...\n")
 
     # Training loop
