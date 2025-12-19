@@ -244,29 +244,17 @@ def main():
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
-    # class weights logic 
-    if args.loss_type == 'weighted':
-            print("Mode: Class Weighted Loss")
-            
-            # 1. Start with base weight 3.0 for everyone (Moderate Boost)
-            class_weights = torch.full((20,), 3.0) 
-            
-            # 2. Set Background to 1.0 (Low Priority)
-            class_weights[0] = 1.0
-            
-            # 3. Set Dead Classes to 7.0 (High Priority)
-            dead_classes = [6, 7, 8, 10, 12, 13, 14, 17, 18]
-            class_weights[dead_classes] = 7.0 # PyTorch allows indexing with lists!
-
-            class_weights = class_weights.to(device)
-            criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
-            
-    elif args.loss_type == 'focal':
+    # focal loss or standard loss        
+    if args.loss_type == 'focal':
         print("Mode: Focal loss ( Auto Focusing)")
         print(f"Focal alpha weight: {args.focal_a_weight}")
-        alpha_weights = [1.0] + [args.focal_a_weight] * 19
-        criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
+        
+        if args.datasets == 'pastis':
+            alpha_weights = [1.0] + [args.focal_a_weight] * 19
+        elif args.datasets == 'france':
+            alpha_weights = [1.0] + [args.focal_a_weight] * 19 + [1.0]
 
+        criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
     else:
         print("Mode: Standard Loss (Flat weights)")
         criterion = nn.CrossEntropyLoss()
