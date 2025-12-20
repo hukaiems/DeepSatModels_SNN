@@ -61,7 +61,8 @@ def get_args():
     parser.add_argument('--max_seq_len', type=int, default=10,
                         help="Fixed time length for input sequences - def=10")
     parser.add_argument('--model_type', type=str, default="mean", choices=['mean', 'no_mean'], help="The architecture type")
-    parser.add_argument('--loss_type', type=str, default='standard', 
+
+    parser.add_argument('--loss_type', type=str, default='standard',    
                         choices=['standard', 'weighted', 'focal'],
                         help="Choose loss function: 'standard' (CE), 'weighted' (CE + Weights), or 'focal' (Focus on hard examples)")
     parser.add_argument('--focal_a_weight', type=float, default=3.0, help="The alpha weight for focal loss")
@@ -248,7 +249,7 @@ def main():
     if args.loss_type == 'focal':
         print("Mode: Focal loss ( Auto Focusing)")
         print(f"Focal alpha weight: {args.focal_a_weight}")
-        
+
         if args.datasets == 'pastis':
             alpha_weights = [1.0] + [args.focal_a_weight] * 19
         elif args.datasets == 'france':
@@ -287,6 +288,11 @@ def main():
             # Load states
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            # check if checkpoint has then load not then restart
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            else:
+                print("⚠️ No scheduler state found. Scheduler will restart.")
 
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
@@ -326,6 +332,7 @@ def main():
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             'best_score': best_score,
             'early_stopping_counter': early_stopping_counter,
         }
