@@ -64,6 +64,86 @@ def get_args():
     return parser.parse_args()
 
 
+
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+from tqdm.auto import tqdm
+
+# --- 1. Define the Evaluation Function ---
+def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=None, save_path="confusion_matrix.png"):
+    """
+    Runs inference, computes the Confusion Matrix batch-wise (saves RAM),
+    and plots the normalized heatmap (Recall).
+    """
+    model.eval()
+    
+    # Initialize empty matrix
+    total_cm = np.zeros((num_classes, num_classes))
+    
+    print("🔍 Starting Confusion Matrix Calculation...")
+    
+    with torch.no_grad():
+        for batch in tqdm(val_loader, desc="Inferencing"):
+            # 1. Unpack Batch (Match this to your specific keys)
+            inputs = batch['image'].to(device)
+            dates = batch['dates'].to(device)
+            targets = batch['mask'].to(device)
+            
+            # 2. Forward Pass
+            outputs = model(inputs, dates)
+            
+            # 3. Get Predictions (Argmax)
+            preds = torch.argmax(outputs, dim=1) # Shape: (B, H, W)
+            
+            # 4. Flatten for Scikit-Learn (B*H*W)
+            # Important: Move to CPU immediately to free GPU memory
+            preds_flat = preds.flatten().cpu().numpy()
+            targets_flat = targets.flatten().cpu().numpy()
+            
+            # 5. Compute Batch CM
+            # 'labels' ensures we track all classes even if missing in this batch
+            batch_cm = confusion_matrix(targets_flat, preds_flat, labels=np.arange(num_classes))
+            total_cm += batch_cm
+
+    # --- Normalization (Row-wise = Recall) ---
+    # Divide by the sum of True Labels (Rows)
+    # +1e-7 prevents division by zero for empty classes
+    row_sums = total_cm.sum(axis=1)[:, np.newaxis] + 1e-7
+    cm_normalized = total_cm.astype('float') / row_sums
+
+    # --- Plotting ---
+    plt.figure(figsize=(20, 16))
+    
+    if class_names is None:
+        class_names = [str(i) for i in range(num_classes)]
+        
+    sns.heatmap(
+        cm_normalized, 
+        annot=True,         # Show numbers
+        fmt=".2f",          # 2 decimal places
+        cmap="Blues",       # Color scheme
+        xticklabels=class_names, 
+        yticklabels=class_names,
+        cbar_kws={'label': 'Recall (Sensitivity)'}
+    )
+    
+    plt.ylabel('True Class (Ground Truth)', fontsize=14, fontweight='bold')
+    plt.xlabel('Predicted Class', fontsize=14, fontweight='bold')
+    plt.title(f'Normalized Confusion Matrix (Total Pixels: {int(total_cm.sum())})', fontsize=16)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    
+    # Save the plot
+    plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    print(f"✅ Confusion Matrix saved to {save_path}")
+    plt.show()
+    
+    return total_cm
+
+
 # --- 3. MAIN EXECUTION ---
 def main():
     args = get_args()
@@ -146,6 +226,26 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+
+
+    # Define Class Names
+    PASTIS_CLASSES = [
+        "0: Bg/Other", "1: Corn", "2: Meadow", "3: W.Wheat", "4: W.Barley", 
+        "5: W.Rapeseed", "6: Spring Barley", "7: Sunflower", "8: Sugar Beet", 
+        "9: Water", "10: Forest", "11: Alfalfa", "12: Soybean", "13: Other Cereal", 
+        "14: Potatoes", "15: Sorghum", "16: Peas", "17: Triticale", 
+        "18: Durum Wheat", "19: Perm. Grass"
+    ]
+
+    # CALL THE FUNCTION
+    # Assuming 'model', 'val_loader', and 'device' are already defined in your script
+    cm = compute_and_plot_cm(
+        model=model, 
+        val_loader=val_loader, 
+        device=device, 
+        num_classes=20, 
+        class_names=PASTIS_CLASSES
+    )
 
     # ---------------------------------------------------------
     # ⚡ PHASE 1: Energy Efficiency Analysis
