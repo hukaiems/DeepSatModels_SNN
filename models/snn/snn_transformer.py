@@ -192,7 +192,7 @@ class MS_Attention_RepConv(nn.Module):
     def forward(self, x):
         T, B, C, H, W = x.shape
         N = H*W # number of tokens for transformer
-
+        
         # turn analog into spike
         x = self.head_lif(x) 
         # process Q, K, V

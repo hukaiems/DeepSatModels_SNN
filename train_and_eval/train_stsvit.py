@@ -78,9 +78,6 @@ def get_args():
 
 
 # --- HELPER FUNCTIONS ---
-
-import torch
-
 def check_class_imbalance(model, dataloader, device, num_classes=21):
     model.eval()
     
@@ -153,64 +150,6 @@ def check_class_imbalance(model, dataloader, device, num_classes=21):
     valid_classes = iou_per_class[ground_truth_set > 0]
     print("-" * 40)
     print(f"Mean IoU: {valid_classes.mean().item():.4f}")
-
-# ================================
-# USAGE
-# ================================
-# check_class_imbalance(model, val_loader, device='cuda', num_classes=20)
-
-
-# ================================
-# CHECK CLASS IMBALANCE
-
-def check_class_distribution(dataloader, num_classes=21, device='cuda'):
-    print("📊 Scanning dataset for class imbalance...")
-    
-    # Initialize counter
-    class_counts = torch.zeros(num_classes).to(device)
-    total_pixels = 0
-    
-    # Iterate over the dataloader
-    # We only need the targets (y)
-    for batch in tqdm(dataloader):
-        # Assuming batch is (x, y, dates) or (x, y)
-        # We just need y. Adjust index if your loader returns something else.
-        targets = batch['labels'].to(device) 
-        
-        # Flatten the targets to 1D array of pixels
-        # targets shape: [Batch, H, W] -> [Batch * H * W]
-        flat_targets = targets.view(-1)
-        
-        # Count occurrences of each class
-        # bincount is very fast on GPU
-        counts = torch.bincount(flat_targets, minlength=num_classes)
-        
-        # Add to total
-        class_counts += counts
-        total_pixels += flat_targets.numel()
-        
-    # Convert to percentages
-    class_counts = class_counts.cpu().numpy()
-    percentages = (class_counts / total_pixels) * 100
-    
-    print("\n--- 📉 Class Distribution Report ---")
-    print(f"{'Class ID':<10} | {'Count':<15} | {'Percentage':<10}")
-    print("-" * 45)
-    
-    for i in range(num_classes):
-        status = ""
-        if percentages[i] > 10.0:
-            status = "🐘 GIANT"
-        elif percentages[i] < 0.1:
-            status = "💀 RARE"
-            
-        print(f"{i:<10} | {int(class_counts[i]):<15} | {percentages[i]:.4f}% {status}")
-        
-    return percentages
-
-# --- HOW TO RUN ---
-# Assuming you have your train_loader defined from your main script
-# stats = check_class_distribution(train_loader, num_classes=20)
 
 
 
@@ -393,9 +332,6 @@ def main():
         DatasetLoader(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
     )
-
-    # apply class imbalance debugging
-    check_class_distribution(train_loader, num_classes=21)
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
