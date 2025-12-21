@@ -88,8 +88,8 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
     with torch.no_grad():
         for batch in tqdm(val_loader, desc="Inferencing"):
             # 1. Unpack Batch (Match this to your specific keys)
-            inputs = batch['img'].to(device)
-            dates = batch['doy'].to(device)
+            inputs = batch['sequence'].to(device)
+            dates = batch['dates'].to(device)
             targets = batch['labels'].to(device)
             
             # 2. Forward Pass
