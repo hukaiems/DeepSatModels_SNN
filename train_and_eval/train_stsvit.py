@@ -157,11 +157,13 @@ def main():
         DatasetLoader = FranceDataset
         in_channels = 13
         num_classes = 21
+        ignore_index = 20
         print(f"Dataset Selected: France dataset.")
     else: 
         DatasetLoader = PastisDataset
         in_channels = 10
         num_classes = 20
+        ignore_index = 19
         print(f"Dataset Selected: PASTIS dataset.")
     
     # Paths
@@ -251,18 +253,19 @@ def main():
         print(f"Focal alpha weight: {args.focal_a_weight}")
 
         if args.datasets == 'pastis':
-            alpha_weights = [1.0] + [args.focal_a_weight] * 19
+            alpha_weights = [1.0] + [args.focal_a_weight] * 18 + [1.0]
         elif args.datasets == 'france':
-            alpha_weights = [1.0] + [args.focal_a_weight] * 19 + [1.0]
-
-        criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=255)
+            alpha_weights = [1.0] + [args.focal_a_weight] * 19 +[1.0]
+            
+        criterion = FocalLoss(alpha=alpha_weights, gamma=2.0, ignore_index=ignore_index)
     else:
         print("Mode: Standard Loss (Flat weights)")
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=ignore_index)
+            
 
     criterion = criterion.to(device)
 
-    metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro').to(device)
+    metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
