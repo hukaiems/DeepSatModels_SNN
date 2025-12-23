@@ -316,7 +316,7 @@ def plot_phenological_confusion(
     plt.figure(figsize=(10, 6))
     plt.title("Spectral Phenology Profile: The Source of Confusion", fontsize=14)
     plt.xlabel("Time Steps (Acquisition Dates)", fontsize=12)
-    plt.ylabel("NDVI (Vegetation Health)", fontsize=12)
+    plt.ylabel("Normalized Feature Value (NIR Band)", fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.6)
 
     colors = {3: 'green', 18: 'red', 2: 'blue'}
@@ -330,21 +330,16 @@ def plot_phenological_confusion(
             
         data = np.concatenate(profiles[cls_id], axis=0) # Shape: (N, T, C)
         
-        # Calculate NDVI: (NIR - Red) / (NIR + Red)
-        red_band = data[:, :, red_idx]
-        nir_band = data[:, :, nir_idx]
+        feature_band = data[:, :, nir_idx] 
         
-        # Handle Potential Division by Zero
-        ndvi = (nir_band - red_band) / (nir_band + red_band + 1e-6)
-        
-        # Calculate Statistics
-        mean_ndvi = np.mean(ndvi, axis=0)
-        std_ndvi = np.std(ndvi, axis=0)
-        x_axis = np.arange(len(mean_ndvi))
+        # Calculate Statistics on the raw feature
+        mean_val = np.mean(feature_band, axis=0)
+        std_val = np.std(feature_band, axis=0)
+        x_axis = np.arange(len(mean_val))
         
         # Plot
-        plt.plot(x_axis, mean_ndvi, label=name, color=colors[cls_id], linestyle=styles[cls_id], linewidth=2)
-        plt.fill_between(x_axis, mean_ndvi - 0.2*std_ndvi, mean_ndvi + 0.2*std_ndvi, color=colors[cls_id], alpha=0.1)
+        plt.plot(x_axis, mean_val, label=name, color=colors[cls_id], linestyle=styles[cls_id], linewidth=2)
+        plt.fill_between(x_axis, mean_val - 0.2*std_val, mean_val + 0.2*std_val, color=colors[cls_id], alpha=0.1)
 
     plt.legend(fontsize=12)
     plt.tight_layout()
