@@ -3,6 +3,11 @@ import torch.nn as nn
 from thop import profile
 from tqdm import tqdm
 
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
 # --- Energy Calculation ---
 class FiringRateMonitor:
     def __init__(self, model):
@@ -92,3 +97,149 @@ def measure_energy_efficiency_full(model, dataloader, device, disable_tqdm=False
     print(f"🚀 Efficiency Gain: {reduction:.2f}x")
     
     return reduction
+
+
+def check_class_imbalance(model, dataloader, device, num_classes=21):
+    model.eval()
+    
+    # 1. Initialize Confusion Matrix (Confusion Matrix = num_classes x num_classes)
+    # Rows = Ground Truth, Columns = Predictions
+    confusion_matrix = torch.zeros(num_classes, num_classes, device=device)
+    
+    print("--- 📊 Analyzing Class Performance ---")
+    
+    with torch.no_grad():
+        for i, batch in enumerate(dataloader):
+            x = batch['sequence'].to(device)
+            dates = batch['dates'].to(device)
+            y = batch['labels'].to(device) # Shape: [Batch, H, W]
+
+            # Forward Pass
+            logits = model(x, dates) 
+            preds = torch.argmax(logits, dim=1) # Shape: [Batch, H, W]
+
+            # 2. Flatten for easy counting
+            y_flat = y.view(-1)
+            preds_flat = preds.view(-1)
+
+            # 3. Filter out ignore_index (usually -1 or 255) if necessary
+            # mask = (y_flat >= 0) & (y_flat < num_classes)
+            # y_flat = y_flat[mask]
+            # preds_flat = preds_flat[mask]
+
+            # 4. Update Confusion Matrix (Vectorized)
+            # This maps (Target, Pred) pairs to a unique index
+            indices = num_classes * y_flat + preds_flat
+            counts = torch.bincount(indices, minlength=num_classes**2)
+            
+            # Reshape back to square matrix and add to total
+            confusion_matrix += counts.view(num_classes, num_classes)
+            
+            # Optional: Stop after 50 batches to save time
+            if i > 50: 
+                break
+
+    # 5. Calculate IoU per class
+    # Intersection = Diagonal elements
+    intersection = torch.diag(confusion_matrix)
+    
+    # Union = Sum of Rows + Sum of Cols - Intersection
+    ground_truth_set = confusion_matrix.sum(dim=1)
+    predicted_set = confusion_matrix.sum(dim=0)
+    union = ground_truth_set + predicted_set - intersection
+
+    # IoU = Intersection / Union
+    iou_per_class = intersection / (union + 1e-6) # Add epsilon to avoid divide by zero
+
+    # 6. Print Results
+    print(f"\n{'Class ID':<10} | {'IoU':<10} | {'Status'}")
+    print("-" * 40)
+    
+    for c in range(num_classes):
+        iou = iou_per_class[c].item()
+        
+        status = ""
+        if iou > 0.7: status = "🌟 Excellent"
+        elif iou < 0.1: status = "⚠️ FAILED (Lazy Model)"
+        elif iou == 0.0: status = "💀 DEAD"
+        
+        # Only print if the class actually exists in the GT
+        if ground_truth_set[c] > 0:
+            print(f"{c:<10} | {iou:.4f}     | {status}")
+            
+    # Calculate Mean IoU
+    valid_classes = iou_per_class[ground_truth_set > 0]
+    print("-" * 40)
+    print(f"Mean IoU: {valid_classes.mean().item():.4f}")
+
+
+
+def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=None, save_path="confusion_matrix.png"):
+    """
+    Runs inference, computes the Confusion Matrix batch-wise (saves RAM),
+    and plots the normalized heatmap (Recall).
+    """
+    model.eval()
+    
+    # Initialize empty matrix
+    total_cm = np.zeros((num_classes, num_classes))
+    
+    print("🔍 Starting Confusion Matrix Calculation...")
+    
+    with torch.no_grad():
+        for batch in tqdm(val_loader, desc="Inferencing"):
+            # 1. Unpack Batch (Match this to your specific keys)
+            inputs = batch['sequence'].to(device)
+            dates = batch['dates'].to(device)
+            targets = batch['labels'].to(device)
+            
+            # 2. Forward Pass
+            outputs = model(inputs, dates)
+            
+            # 3. Get Predictions (Argmax)
+            preds = torch.argmax(outputs, dim=1) # Shape: (B, H, W)
+            
+            # 4. Flatten for Scikit-Learn (B*H*W)
+            # Important: Move to CPU immediately to free GPU memory
+            preds_flat = preds.flatten().cpu().numpy()
+            targets_flat = targets.flatten().cpu().numpy()
+            
+            # 5. Compute Batch CM
+            # 'labels' ensures we track all classes even if missing in this batch
+            batch_cm = confusion_matrix(targets_flat, preds_flat, labels=np.arange(num_classes))
+            total_cm += batch_cm
+
+    # --- Normalization (Row-wise = Recall) ---
+    # Divide by the sum of True Labels (Rows)
+    # +1e-7 prevents division by zero for empty classes
+    row_sums = total_cm.sum(axis=1)[:, np.newaxis] + 1e-7
+    cm_normalized = total_cm.astype('float') / row_sums
+
+    # --- Plotting ---
+    plt.figure(figsize=(20, 16))
+    
+    if class_names is None:
+        class_names = [str(i) for i in range(num_classes)]
+        
+    sns.heatmap(
+        cm_normalized, 
+        annot=True,         # Show numbers
+        fmt=".2f",          # 2 decimal places
+        cmap="Blues",       # Color scheme
+        xticklabels=class_names, 
+        yticklabels=class_names,
+        cbar_kws={'label': 'Recall (Sensitivity)'}
+    )
+    
+    plt.ylabel('True Class (Ground Truth)', fontsize=14, fontweight='bold')
+    plt.xlabel('Predicted Class', fontsize=14, fontweight='bold')
+    plt.title(f'Normalized Confusion Matrix (Total Pixels: {int(total_cm.sum())})', fontsize=16)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    
+    # Save the plot
+    plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    print(f"✅ Confusion Matrix saved to {save_path}")
+    plt.show()
+    
+    return total_cm

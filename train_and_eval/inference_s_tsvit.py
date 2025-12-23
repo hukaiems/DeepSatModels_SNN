@@ -23,10 +23,10 @@ from tqdm import tqdm
 import pandas as pd
 from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
 
-from spike_data.pastis_dataset import PastisDataset
+from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -57,6 +57,15 @@ def get_args():
                         help="Number of CPU processors to load data for the model")
     parser.add_argument('--no_progress_bar', action='store_true', 
                         help="Disable tqdm progress bar (useful for Kaggle Commit/Save Version)")
+        parser.add_argument('--inference', action='store_true',
+                        help='Run inferencing for the checkpoint')
+    parser.add_argument('--test_per_class', action='store_true',
+                        help="Test the per class mIoU")
+    parser.add_argument('--test_energy', action='store_true',
+                        help="Test the energy efficiency of the model")
+
+    parser.add_argument('--confusion_matrix', action='store_true',
+                        help="Run confusion matrix of the checkpoint")
 
     return parser.parse_args()
 
@@ -138,39 +147,56 @@ def main():
     model.eval()
 
     # ---------------------------------------------------------
+    # Plot Confusion matrix
+    # ---------------------------------------------------------
+    if args.confusion_matrix:
+        cm = compute_and_plot_cm(
+            model=model, 
+            val_loader=val_loader, 
+            device=device, 
+            num_classes=20, 
+            class_names=PASTIS_CLASSES
+        )
+
+    if args.test_per_class:
+        check_class_imbalance(model, val_loader, device=device, num_classes=20)
+
+    # ---------------------------------------------------------
     # ⚡ PHASE 1: Energy Efficiency Analysis
     # ---------------------------------------------------------
     # This runs BEFORE the accuracy loop. It pushes data through,
     # counts spikes, and prints the "15x Efficiency" stat.
     # ---------------------------------------------------------
-    measure_energy_efficiency_full(model, val_loader, device, disable_tqdm=args.no_progress_bar)
+    if args.test_energy:
+        measure_energy_efficiency_full(model, val_loader, device, disable_tqdm=args.no_progress_bar)
 
     # ---------------------------------------------------------
     # 🎯 PHASE 2: Accuracy Evaluation (mIoU)
     # ---------------------------------------------------------
-    print("\n--- 🎯 Starting Accuracy Evaluation ---")
     metric = MulticlassJaccardIndex(num_classes=20, average='macro').to(device)
     
-    with torch.no_grad():
-        for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
-            x = batch['sequence'].to(device)
-            dates = batch['dates'].to(device)
-            y = batch['labels'].to(device)
+    if args.inference:
+        print("\n--- 🎯 Starting Accuracy Evaluation ---")
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
+                x = batch['sequence'].to(device)
+                dates = batch['dates'].to(device)
+                y = batch['labels'].to(device)
 
-            # Inference
-            logits = model(x, dates)
-            preds = torch.argmax(logits, dim=1)
-            
-            # Update Metric
-            metric.update(preds, y)
-            
-            # Reset SNN states (Voltage = 0)
-            reset_net(model)
+                # Inference
+                logits = model(x, dates)
+                preds = torch.argmax(logits, dim=1)
+                
+                # Update Metric
+                metric.update(preds, y)
+                
+                # Reset SNN states (Voltage = 0)
+                reset_net(model)
 
-    final_miou = metric.compute().item()
-    print(f"\n=========================================")
-    print(f"🏆 Final Test mIoU: {final_miou:.4f}")
-    print(f"=========================================\n")
+        final_miou = metric.compute().item()
+        print(f"\n=========================================")
+        print(f"🏆 Final Test mIoU: {final_miou:.4f}")
+        print(f"=========================================\n")
 
 if __name__ == "__main__": # only run if execute python command.
     main() 
