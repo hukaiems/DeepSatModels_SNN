@@ -27,7 +27,7 @@ from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -72,6 +72,8 @@ def get_args():
 
     parser.add_argument('--confusion_matrix', action='store_true',
                         help="Run confusion matrix of the checkpoint")
+    parser.add_argument('--NDVI', action='store_true',
+                        help="Run NDVI to check similar growth cycle for specific crop types")
 
     return parser.parse_args()
 
@@ -173,6 +175,19 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+
+    # ---------------------------------------------------------
+    # Plot NDVI similarity plot for growth cycle
+    # ---------------------------------------------------------
+    if args.NDVI:
+        print("🔎 Running Phenological Analysis...")
+        plot_phenological_confusion(
+            dataloader=val_loader, 
+            save_path="output/phenology_confusion.png", # Change path if needed
+            red_idx=2,   # Ensure this matches your data (Red)
+            nir_idx=3    # Ensure this matches your data (NIR)
+        )
+        print("✅ Analysis Complete. Check output folder.")
 
     # ---------------------------------------------------------
     # Plot Confusion matrix
