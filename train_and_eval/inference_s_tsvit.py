@@ -23,11 +23,11 @@ from tqdm import tqdm
 import pandas as pd
 from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
 
-from spike_data.pastis_dataset import PastisDataset
+from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -70,6 +70,9 @@ def get_args():
     parser.add_argument('--test_energy', action='store_true',
                         help="Test the energy efficiency of the model")
 
+    parser.add_argument('--confusion_matrix', action='store_true',
+                        help="Run confusion matrix of the checkpoint")
+
     return parser.parse_args()
 
 
@@ -96,12 +99,14 @@ def main():
         in_channels = 13
         num_classes = 21
         ignore_index = 20
+        class_names=FRANCE_CLASSES
         print(f"Dataset Selected: France dataset.")
     else: 
         DatasetLoader = PastisDataset
         in_channels = 10
         num_classes = 20
         ignore_index = 19
+        class_names=PASTIS_CLASSES
         print(f"Dataset Selected: PASTIS dataset.")
 
     # Model Architecture
@@ -168,6 +173,18 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+
+    # ---------------------------------------------------------
+    # Plot Confusion matrix
+    # ---------------------------------------------------------
+    if args.confusion_matrix:
+        cm = compute_and_plot_cm(
+            model=model, 
+            val_loader=val_loader, 
+            device=device, 
+            num_classes=num_classes, 
+            class_names=class_names
+        )
 
     # ---------------------------------------------------------
     # Per class mIoU Analysis
