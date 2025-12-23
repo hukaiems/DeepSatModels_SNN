@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
+import os
+
 # --- Energy Calculation ---
 class FiringRateMonitor:
     def __init__(self, model):
@@ -243,3 +245,114 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
     plt.show()
     
     return total_cm
+
+
+# The NDVI test to show compare the phenology of similar parcels.
+
+def plot_phenological_confusion(
+    dataloader, 
+    save_path="phenological_confusion.png",
+    red_idx=2, 
+    nir_idx=3, 
+    num_samples=1000
+):
+
+    # Define the classes we want to compare
+    class_map = {
+        3: "Corn (Summer)",       # The confusing class
+        18: "Sorghum (Summer)",   # The confusing class
+        2: "Winter Wheat (Winter)" # Control class
+    }
+
+    # empty list and counter to store values 
+    profiles = {k: [] for k in class_map.keys()}
+    counts = {k: 0 for k in class_map.keys()}
+
+    print(f"📊 Collecting spectral profiles for: {list(class_map.values())}...")
+
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Scanning Dataset"):
+            if isinstance(batch, dict):
+                inputs = batch['sequence']
+                targets = batch['labels']
+
+            else:
+                print("Unknown batch format. Skipping.")
+                continue
+
+            inputs = inputs.cpu()
+            targets = targets.cpu()
+            
+            # Shape check and flattening
+            if inputs.dim() == 5:
+                B, T, C, H, W = inputs.shape
+
+                # Permute to (Batch, H, W, Time, Channels) -> Flatten to (N, T, C)
+                inputs = inputs.permute(0, 3, 4, 1, 2).reshape(-1, T, C)
+                targets = targets.view(-1)
+
+            # Extract samples for each target class
+            for cls_id in class_map.keys():
+                # If enough data, skip.
+                if counts[cls_id] >= num_samples:
+                    continue
+
+                mask = (targets == cls_id)
+                if mask.sum() == 0:
+                    continue
+
+                # Extract and store
+                class_pixels = inputs[mask]
+                n_take = min(num_samples - counts[cls_id], len(class_pixels))
+                profiles[cls_id].append(class_pixels[:n_take].numpy())
+                counts[cls_id] += n_take
+
+            if all(c >= num_samples for c in counts.values()):
+                break
+    
+
+    # --- PLOTTING ---
+    print("📈 Generating NDVI Plot...")
+    plt.figure(figsize=(10, 6))
+    plt.title("Spectral Phenology Profile: The Source of Confusion", fontsize=14)
+    plt.xlabel("Time Steps (Acquisition Dates)", fontsize=12)
+    plt.ylabel("NDVI (Vegetation Health)", fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+
+    colors = {3: 'green', 18: 'red', 2: 'blue'}
+    styles = {3: '-', 18: '--', 2: ':'}
+    
+    # Plot each class
+    for cls_id, name in class_map.items():
+        if len(profiles[cls_id]) == 0:
+            print(f"⚠️ Warning: No samples found for {name}")
+            continue
+            
+        data = np.concatenate(profiles[cls_id], axis=0) # Shape: (N, T, C)
+        
+        # Calculate NDVI: (NIR - Red) / (NIR + Red)
+        red_band = data[:, :, red_idx]
+        nir_band = data[:, :, nir_idx]
+        
+        # Handle Potential Division by Zero
+        ndvi = (nir_band - red_band) / (nir_band + red_band + 1e-6)
+        
+        # Calculate Statistics
+        mean_ndvi = np.mean(ndvi, axis=0)
+        std_ndvi = np.std(ndvi, axis=0)
+        x_axis = np.arange(len(mean_ndvi))
+        
+        # Plot
+        plt.plot(x_axis, mean_ndvi, label=name, color=colors[cls_id], linestyle=styles[cls_id], linewidth=2)
+        plt.fill_between(x_axis, mean_ndvi - 0.2*std_ndvi, mean_ndvi + 0.2*std_ndvi, color=colors[cls_id], alpha=0.1)
+
+    plt.legend(fontsize=12)
+    plt.tight_layout()
+    
+    # Save directory check
+    save_dir = os.path.dirname(save_path)
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    plt.savefig(save_path, dpi=300)
+    print(f"✅ Plot saved to: {save_path}")
