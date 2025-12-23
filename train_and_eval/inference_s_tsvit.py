@@ -57,7 +57,7 @@ def get_args():
                         help="Number of CPU processors to load data for the model")
     parser.add_argument('--no_progress_bar', action='store_true', 
                         help="Disable tqdm progress bar (useful for Kaggle Commit/Save Version)")
-        parser.add_argument('--inference', action='store_true',
+    parser.add_argument('--inference', action='store_true',
                         help='Run inferencing for the checkpoint')
     parser.add_argument('--test_per_class', action='store_true',
                         help="Test the per class mIoU")
