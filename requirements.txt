@@ -11,4 +11,5 @@ torchmetrics
 thop
 matplotlib
 seaborn
+einops
 cupy-cuda12x
