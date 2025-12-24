@@ -33,20 +33,33 @@ if [ ! -d "$DATA_DIR" ]; then
     cd "$DATA_DIR"
 
     echo "⬇️ Downloading datasets from Kaggle..."
-
     kaggle datasets download -d hukibeginner2/pastis-pkl-firsthalf
     kaggle datasets download -d nguyenlecao/pastis-pkl
 
-    echo "📦 Unzipping..."
-    unzip -q -o "*.zip"
-    rm *.zip
+    FREE_GB=$(df -BG . | tail -1 | awk '{print $4}' | tr -d 'G')
+    if [ "$FREE_GB" -lt 25 ]; then
+        echo "❌ Not enough disk space (${FREE_GB}G free). Abort."
+        exit 1
+    fi
+
+    echo "📦 Unzipping safely..."
+    shopt -s nullglob
+    for zipfile in *.zip; do
+        echo "➡️ Extracting $zipfile"
+        unzip -o "$zipfile"
+        echo "🧹 Removing $zipfile"
+        rm "$zipfile"
+        df -h .
+        echo "----------------------"
+    done
 
     cd ..
 else
     echo "✅ Data directory already exists. Skipping download."
 fi
 
-echo " Creating checkpoints dir "
+echo "📁 Creating checkpoints dir"
 mkdir -p checkpoints
 
 echo "✅ Setup Complete! Ready to train 🚀"
+
