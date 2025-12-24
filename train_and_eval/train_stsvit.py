@@ -88,7 +88,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
     model.train() # set model to train
     total_loss = 0.0
     optimizer.zero_grad() # set zero grad
-    progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm) # wrap dataloader act as iterator
+    progress_bar = tqdm(dataloader, desc="Training", leave=False, disable=disable_tqdm, dynamic_ncols=True) # wrap dataloader act as iterator
 
     # run for each batch
     for i, batch in enumerate(progress_bar):
@@ -130,7 +130,7 @@ def evaluate(model, dataloader, metric_fn, device, disable_tqdm=False):
     metric_fn.reset() # metric func-obj to know how good prediction ares
 
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc='Evaluating', leave=False, disable=disable_tqdm):
+        for batch in tqdm(dataloader, desc='Evaluating', leave=False, disable=disable_tqdm, dynamic_ncols=True):
             x = batch['sequence'].to(device)
             dates = batch['dates'].to(device)
             y = batch['labels'].to(device)
