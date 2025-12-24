@@ -11,4 +11,4 @@ torchmetrics
 thop
 matplotlib
 seaborn
-rasterio
+cupy-cuda12x
