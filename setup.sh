@@ -46,4 +46,7 @@ else
     echo "✅ Data directory already exists. Skipping download."
 fi
 
+echo " Creating checkpoints dir "
+mkdir -p checkpoints
+
 echo "✅ Setup Complete! Ready to train 🚀"
