@@ -1,0 +1,14 @@
+torch
+torchvision
+torchaudio
+pandas
+numpy
+scikit-learn
+tqdm
+spikingjelly
+timm
+torchmetrics
+thop
+matplotlib
+seaborn
+rasterio
