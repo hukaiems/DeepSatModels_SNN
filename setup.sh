@@ -6,7 +6,7 @@ echo "🚀 Starting Setup..."
 # 1. System Dependencies
 echo "🛠️ Updating System..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update && apt-get install -y libgl1-mesa-glx unzip zip tmux
+apt-get update && apt-get install -y libgl1 unzip zip tmux
 
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
