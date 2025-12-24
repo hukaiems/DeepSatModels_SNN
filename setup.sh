@@ -25,7 +25,7 @@ if [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; then
 fi
 
 # 5. Dataset Download
-DATA_DIR="data"
+DATA_DIR="kaggle_data"
 
 if [ ! -d "$DATA_DIR" ]; then
     echo "📂 Creating data directory..."
