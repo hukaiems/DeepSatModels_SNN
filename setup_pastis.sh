@@ -11,7 +11,6 @@ apt-get update && apt-get install -y --no-install-recommends \
 
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
-python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 
 # 3. Kaggle CLI
