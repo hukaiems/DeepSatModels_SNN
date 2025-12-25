@@ -11,7 +11,11 @@ apt-get update && apt-get install -y --no-install-recommends \
 
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
-python3 -m pip install --no-cache-dir -r requirements.txt
+python3 -m pip install -r requirements.txt --no-cache-dir
+
+echo "Installing deep learning model"
+pip install spikingjelly timm torchmetrics thop einops tensorboard --no-deps --no-cache-dir
+pip install cupy-cuda12x --no-cache-dir
 
 # 3. Kaggle CLI
 echo "🔑 Installing Kaggle API..."
