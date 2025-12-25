@@ -2,3 +2,13 @@ pandas
 numpy
 scikit-learn
 tqdm
+matplotlib
+lightning-utilities
+seaborn
+spikingjelly
+timm
+torchmetrics
+thop
+einops
+tensorboard
+cupy-cuda12x

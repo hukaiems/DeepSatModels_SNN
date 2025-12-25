@@ -3,19 +3,21 @@ set -e
 
 echo "🚀 Starting Setup..."
 
+# 1. Activate Environment (CRITICAL STEP)
+# This ensures we use the pre-installed PyTorch
+source /venv/main/bin/activate
+
 # 1. System Dependencies
 echo "🛠️ Updating System..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update && apt-get install -y --no-install-recommends \
     libgl1 unzip zip tmux
 
+pip install nvidia-cuda-nvrtc-cu12 --no-cache-dir
+
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
 python3 -m pip install -r requirements.txt --no-cache-dir
-
-echo "Installing deep learning model"
-pip install spikingjelly timm torchmetrics thop einops tensorboard --no-deps --no-cache-dir
-pip install cupy-cuda12x --no-cache-dir
 
 # 3. Kaggle CLI
 echo "🔑 Installing Kaggle API..."
