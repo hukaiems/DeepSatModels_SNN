@@ -11,7 +11,7 @@ apt-get update && apt-get install -y --no-install-recommends \
 
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
-python3 -m pip install -r requirements.txt
+python3 -m pip install --no-cache-dir -r requirements.txt
 
 # 3. Kaggle CLI
 echo "🔑 Installing Kaggle API..."
