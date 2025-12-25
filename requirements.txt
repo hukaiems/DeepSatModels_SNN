@@ -6,8 +6,6 @@ spikingjelly
 timm
 torchmetrics
 thop
-matplotlib
-seaborn
 einops
 tensorboard
 cupy-cuda12x
