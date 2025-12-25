@@ -6,16 +6,17 @@ echo "🚀 Starting Setup..."
 # 1. System Dependencies
 echo "🛠️ Updating System..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update && apt-get install -y libgl1 unzip zip tmux
+apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 unzip zip tmux
 
 # 2. Python Dependencies
 echo "📦 Installing Python Libraries..."
-pip install --upgrade pip
-pip install -r requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 
 # 3. Kaggle CLI
 echo "🔑 Installing Kaggle API..."
-pip install kaggle
+python3 -m pip install kaggle
 
 # 4. Kaggle Auth Check (ENV VAR MODE)
 if [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; then
