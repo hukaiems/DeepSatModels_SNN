@@ -44,11 +44,14 @@ if [ ! -d "$DATA_DIR" ]; then
     echo "📦 Unzipping safely..."
     shopt -s nullglob
     for zipfile in *.zip; do
-        echo "➡️ Extracting $zipfile"
-        unzip -o "$zipfile"
-        echo "🧹 Removing $zipfile"
-        rm "$zipfile"
-        df -h .
+        echo "➡️ Extracting $zipfile ..."
+        if unzip -o "$zipfile" >/dev/null; then
+            echo "✅ Done: $zipfile"
+            rm "$zipfile"
+        else
+            echo "❌ Failed to extract $zipfile"
+            exit 1
+        fi
         echo "----------------------"
     done
 
