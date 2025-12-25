@@ -84,7 +84,7 @@ def get_args():
 
 # --- HELPER FUNCTIONS ---
 
-def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False):
+def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False, dynamic_ncols=True):
     model.train() # set model to train
     total_loss = 0.0
     optimizer.zero_grad() # set zero grad
@@ -125,7 +125,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
     return total_loss / len(dataloader)
 
 
-def evaluate(model, dataloader, metric_fn, device, disable_tqdm=False):
+def evaluate(model, dataloader, metric_fn, device, disable_tqdm=False, dynamic_ncols=True):
     model.eval()
     metric_fn.reset() # metric func-obj to know how good prediction ares
 
@@ -272,7 +272,6 @@ def main():
         mode='max',
         factor=0.5,   # cut it by half
         patience=3,   # wait for 3 epochs
-        verbose=True,   
     )
 
     # --- 3. RESUME LOGIC ---
