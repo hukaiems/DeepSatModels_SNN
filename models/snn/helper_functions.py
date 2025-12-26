@@ -136,78 +136,72 @@ def measure_energy_efficiency_full(model, dataloader, device, disable_tqdm=False
     return reduction
 
 
-def check_class_imbalance(model, dataloader, device, num_classes=21):
+def check_class_imbalance(model, dataloader, device, num_classes=21, ignore_index=19):
     model.eval()
-    
-    # 1. Initialize Confusion Matrix (Confusion Matrix = num_classes x num_classes)
-    # Rows = Ground Truth, Columns = Predictions
     confusion_matrix = torch.zeros(num_classes, num_classes, device=device)
     
-    print("--- 📊 Analyzing Class Performance ---")
+    print(f"--- 📊 Analyzing Class Performance (ignoring index {ignore_index}) ---")
     
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
             x = batch['sequence'].to(device)
             dates = batch['dates'].to(device)
-            y = batch['labels'].to(device) # Shape: [Batch, H, W]
+            y = batch['labels'].to(device)
 
-            # Forward Pass
             logits = model(x, dates) 
-            preds = torch.argmax(logits, dim=1) # Shape: [Batch, H, W]
+            preds = torch.argmax(logits, dim=1)
 
-            # 2. Flatten for easy counting
             y_flat = y.view(-1)
             preds_flat = preds.view(-1)
 
-            # 3. Filter out ignore_index (usually -1 or 255) if necessary
-            # mask = (y_flat >= 0) & (y_flat < num_classes)
-            # y_flat = y_flat[mask]
-            # preds_flat = preds_flat[mask]
+            # --- FIX 1: ACTUAL FILTERING ---
+            # Create a mask that is TRUE only for valid classes (not 19)
+            mask = (y_flat != ignore_index)
+            
+            # Apply mask to keep only valid pixels
+            y_flat = y_flat[mask]
+            preds_flat = preds_flat[mask]
 
-            # 4. Update Confusion Matrix (Vectorized)
-            # This maps (Target, Pred) pairs to a unique index
+            if len(y_flat) == 0: continue # Skip if batch was all void
+
             indices = num_classes * y_flat + preds_flat
             counts = torch.bincount(indices, minlength=num_classes**2)
-            
-            # Reshape back to square matrix and add to total
             confusion_matrix += counts.view(num_classes, num_classes)
             
-            # Optional: Stop after 50 batches to save time
-            if i > 50: 
-                break
+            # --- FIX 2: REMOVE THE BREAK ---
+            # if i > 50: break  <-- Delete this to see Rare Class 18!
 
-    # 5. Calculate IoU per class
-    # Intersection = Diagonal elements
+    # Calculate IoU
     intersection = torch.diag(confusion_matrix)
-    
-    # Union = Sum of Rows + Sum of Cols - Intersection
     ground_truth_set = confusion_matrix.sum(dim=1)
     predicted_set = confusion_matrix.sum(dim=0)
     union = ground_truth_set + predicted_set - intersection
+    iou_per_class = intersection / (union + 1e-6)
 
-    # IoU = Intersection / Union
-    iou_per_class = intersection / (union + 1e-6) # Add epsilon to avoid divide by zero
-
-    # 6. Print Results
     print(f"\n{'Class ID':<10} | {'IoU':<10} | {'Status'}")
     print("-" * 40)
     
+    # Loop up to ignore_index (so we stop before printing 19)
+    # OR range(num_classes) if you want to verify 19 is gone
     for c in range(num_classes):
+        # Skip the void class explicitely in print if you want
+        if c == ignore_index: continue
+
         iou = iou_per_class[c].item()
         
         status = ""
         if iou > 0.7: status = "🌟 Excellent"
-        elif iou < 0.1: status = "⚠️ FAILED (Lazy Model)"
-        elif iou == 0.0: status = "💀 DEAD"
+        elif iou < 0.1: status = "⚠️ FAILED"
         
-        # Only print if the class actually exists in the GT
         if ground_truth_set[c] > 0:
             print(f"{c:<10} | {iou:.4f}     | {status}")
-            
-    # Calculate Mean IoU
-    valid_classes = iou_per_class[ground_truth_set > 0]
+        else:
+            # Helps verify if Class 18 is truly missing or just empty
+            print(f"{c:<10} | {'---':<10} | ❌ No GT Samples Found")
+
+    valid_mask = (ground_truth_set > 0) & (torch.arange(num_classes, device=device) != ignore_index)
     print("-" * 40)
-    print(f"Mean IoU: {valid_classes.mean().item():.4f}")
+    print(f"Mean IoU: {iou_per_class[valid_mask].mean().item():.4f}")
 
 
 
