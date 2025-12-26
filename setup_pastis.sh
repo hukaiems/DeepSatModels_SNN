@@ -5,7 +5,7 @@ echo "🚀 Starting Setup..."
 
 # 1. Activate Environment (CRITICAL STEP)
 # This ensures we use the pre-installed PyTorch
-source /venv/main/bin/activate
+# source /venv/main/bin/activate
 
 # 1. System Dependencies
 echo "🛠️ Updating System..."
