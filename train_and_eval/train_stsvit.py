@@ -278,7 +278,7 @@ def main():
     start_epoch = 0
     best_score = 0.0
     # Early stopping logic
-    early_stopping_patience = 10
+    early_stopping_patience = 5
     early_stopping_counter = 0
     early_stopping_delta = 0.001
 
