@@ -420,7 +420,7 @@ def create_cmap(num_classes=20):
     colors = [PASTIS_PALETTE.get(i, (0, 0, 0)) for i in range(num_classes)]
     return mcolors.ListedColormap(colors)
 
-def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir="output/"):
+def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir="output"):
     """
     Plots: Ground Truth | Prediction | Error Map
     """
