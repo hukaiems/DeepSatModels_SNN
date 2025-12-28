@@ -541,3 +541,88 @@ def plot_segmentation_comparison(model, loader, device, num_samples=5, save_dir=
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✅ Saved visualization to {save_path}")
         plt.close()
+
+
+
+# --------------------------------------
+# Analyzing temporal importance
+#  -------------------------------------
+
+def analyze_temporal_importance(model, loader, device, save_dir="output", target_class=9):
+    os.makedirs(save_dir, exist_ok=True)
+    model.eval()
+
+    print("Calculating Baseline Accuracy")
+    correct = 0
+    total = 0
+
+    # for convienience we only use 50 batches
+    subset_limit = 50
+    val_data = []
+    for i, batch in enumerate(loader):
+        if i >= subset_limit: break
+        val_data.append(batch)
+    
+
+    def evaluate_batch_for_class(data_list, mask_t=None):
+        c, t = 0, 0
+        with torch.no_grad():
+            for batch in data_list:
+                x = batch['sequence'].clone().to(device) # clone x so we wont corrupt data
+                dates = batch['dates'].to(device)
+                y_true = batch['labels'].to(device)
+
+                # apply Occlusion (Masking)
+                if mask_t is not None:
+                    x[:, mask_t, :, :, :] = 0
+                
+                logits = model(x, dates)
+                y_pred = torch.argmax(logits, dim=1)
+
+                # score calculation
+                mask = (y_true == target_class)
+
+                if mask.sum() > 0:
+                    c += (y_pred[mask] == y_true[mask]).sum().item()
+                    t += mask.sum().item()
+        return c / t if t >0 else 0
+
+    baseline_acc = evaluate_batch_for_class(val_data, mask_t=None)
+    print(f" Baseline Accuracy (Subset): {baseline_acc:.4f}")
+
+    # Loop through time steps
+    num_timesteps = val_data[0]['sequence'].shape[1]
+    importance_scores = []
+
+    print(f' Testing Importance of {num_timesteps} Time Steps...')
+
+    for t in tqdm(range(num_timesteps)):
+        masked_acc = evaluate_batch_for_class(val_data, mask_t=t)
+
+        drop = baseline_acc - masked_acc
+        importance_scores.append(drop)
+
+    plt.figure(figsize=(12, 6))
+    x_axis = np.arange(num_timesteps)
+    
+    # Plot bars
+    # Use color to highlight positive (important) vs negative (noise)
+    colors = ['red' if x > 0 else 'gray' for x in importance_scores]
+    plt.bar(x_axis, importance_scores, color=colors, alpha=0.7)
+    
+    # Add a smooth trend line to see the "Season"
+    # Simple moving average
+    if len(importance_scores) > 5:
+        smooth = np.convolve(importance_scores, np.ones(3)/3, mode='same')
+        plt.plot(x_axis, smooth, color='black', linestyle='--', linewidth=2, label='Trend')
+
+    plt.title("Temporal Feature Importance (Occlusion Sensitivity)", fontsize=16)
+    plt.ylabel("Drop in Accuracy (Importance)", fontsize=14)
+    plt.xlabel("Time Steps", fontsize=14)
+    plt.axhline(0, color='black', linewidth=0.8)
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    
+    save_path = f"{save_dir}/temporal_importance_class_{target_class}.png"
+    plt.savefig(save_path, dpi=300)
+    print(f"✅ Saved Importance Plot to {save_path}")

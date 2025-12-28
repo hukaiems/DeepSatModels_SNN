@@ -27,7 +27,7 @@ from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison, analyze_temporal_importance
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -76,6 +76,10 @@ def get_args():
                         help="Run NDVI to check similar growth cycle for specific crop types")
     parser.add_argument('--visual_comparison', action='store_true',
                         help="Visualize the error map")
+    parser.add_argument('--temporal_importance', action='store_true',
+                        help="Plotting out which time step is the most importance for the accuracy of each class.")
+    parser.add_argument('--temporal_importance_class', type=int, default=9,
+                        help="This is the class number you want to plot the temporal importance experiment.")
 
     return parser.parse_args()
 
@@ -177,6 +181,12 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+
+    # ---------------------------------------------------------
+    # Plot temporal importance for a specific class
+    # ---------------------------------------------------------
+    if args.temporal_importance:
+        analyze_temporal_importance(model, val_loader, device, target_class=args.temporal_importance_class)
 
 
     # ---------------------------------------------------------
