@@ -183,7 +183,7 @@ def main():
     # Plot comparision
     # ---------------------------------------------------------
     if args.visual_comparison:
-        plot_segmentation_comparison(model, val_loader, device)
+        plot_segmentation_comparison(model, val_loader, device, )
 
 
     # ---------------------------------------------------------

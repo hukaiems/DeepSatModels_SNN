@@ -424,6 +424,9 @@ def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir=
     """
     Plots: Ground Truth | Prediction | Error Map
     """
+    os.makedirs(save_dir, exist_ok=True)
+
+    
     model.eval()
     cmap = create_cmap(20)
 
