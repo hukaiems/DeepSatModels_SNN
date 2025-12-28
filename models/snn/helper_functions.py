@@ -10,6 +10,7 @@ from sklearn.metrics import confusion_matrix
 import os
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
+from spike_data.pastis_dataset import PASTIS_CLASSES
 
 def get_norm_layer_2d(norm_type, channels):
     """
