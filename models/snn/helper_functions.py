@@ -286,7 +286,8 @@ def plot_phenological_confusion(
     save_path="output/beet_vs_veg_phenology.png",
     band_idx=3, 
     band_name="NIR Intensity (Normalized)",
-    num_samples=1000
+    num_samples=1000,
+    window_sizes=5
 ):
     # --- 1. CONFIGURATION ---
     # We compare your specific confused classes against a distinct control
@@ -335,6 +336,12 @@ def plot_phenological_confusion(
             if all(c >= num_samples for c in counts.values()):
                 break
 
+    # --- 2. SMOOTHING FUNCTION ---
+    def moving_average(data, window_size):
+        pad = window_size // 2
+        padded = np.pad(data, (pad, pad), mode='edge')
+        return np.convolve(padded, np.ones(window_size)/window_size, mode='valid')
+
     # --- 3. PLOTTING ---
     plt.figure(figsize=(12, 7))
     
@@ -360,15 +367,19 @@ def plot_phenological_confusion(
         # Calculate Mean and Std Deviation (for the shadow)
         mean_profile = np.mean(band_data, axis=0)
         std_profile = np.std(band_data, axis=0)
-        x_axis = np.arange(len(mean_profile))
+
+        smooth_mean = moving_average(mean_profile, window_size)
+        smooth_std = moving_average(std_profile, window_size)
+
+        x_axis = np.arange(len(smooth_mean))
 
         # Plot Line
-        plt.plot(x_axis, mean_profile, label=name, 
+        plt.plot(x_axis, smooth_mean, label=name, 
                  color=colors[cls_id], linestyle=styles[cls_id], linewidth=3)
         
-        # Plot Shadow (Variance) - divided by 2 for cleaner visualization
-        plt.fill_between(x_axis, mean_profile - 0.5*std_profile, 
-                         mean_profile + 0.5*std_profile, 
+        # Plot Smoothed Shadow
+        plt.fill_between(x_axis, smooth_mean - 0.5*smooth_std, 
+                         smooth_mean + 0.5*smooth_std, 
                          color=colors[cls_id], alpha=0.15)
 
     if found_any:
