@@ -412,19 +412,20 @@ PASTIS_PALETTE = {
     18: (0.0, 0.0, 0.5),       # Sorghum -> Navy
     19: (1.0, 1.0, 1.0),       # Void -> White
 }
-def create_cmap(num_classes=20):
-    num_classes=num_classes
-    colors = [PASTIS_PALETTE.get((i, (1.0, 1.0, 1.0)) for i in range(num_classes))]
-    return mcolors.ListedColormap(colors) # for matplotlib to load fast, plt is C++ cant load python list
 
-def plot_segmentation_comparsion(model, loader, device, num_samples=3, save_dir="output/"):
+# --- 1. Fix the Color Map Creator ---
+def create_cmap(num_classes=20):
+    # FIX: Cleaned up the list comprehension
+    colors = [PASTIS_PALETTE.get(i, (0, 0, 0)) for i in range(num_classes)]
+    return mcolors.ListedColormap(colors)
+
+def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir="output/"):
     """
     Plots: Ground Truth | Prediction | Error Map
     """
     model.eval()
     cmap = create_cmap(20)
 
-    # a little uncomfortable cause I dont know the code too much
     # Get a batch
     batch = next(iter(loader))
     x = batch['sequence'].to(device)
@@ -438,39 +439,48 @@ def plot_segmentation_comparsion(model, loader, device, num_samples=3, save_dir=
     # Convert to CPU numpy for plotting
     y_true_np = y_true.cpu().numpy()
     y_pred_np = y_pred.cpu().numpy()
+    
+    # FIX: Handle PASTIS_CLASSES being a list or dict
+    if isinstance(PASTIS_CLASSES, dict):
+        idx_to_name = PASTIS_CLASSES
+    else:
+        idx_to_name = {i: name for i, name in enumerate(PASTIS_CLASSES)}
 
     for idx in range(min(num_samples, x.shape[0])):
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-        # 1. Ground Truth
+        # --- 1. Ground Truth ---
         im1 = axes[0].imshow(y_true_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
         axes[0].set_title(f'Ground Truth (Sample {idx})', fontsize=14)
         axes[0].axis('off')
 
-        # 2. Prediction
-        im2 = axes[1].imshow(y_true_np[idx], cmap=cmap. vmin=0, vmax=19, interpolation='nearest')
+        # --- 2. Prediction ---
+        # FIX: You were plotting y_true_np again! Changed to y_pred_np.
+        # FIX: Fixed the syntax error (dot -> comma)
+        im2 = axes[1].imshow(y_pred_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
         axes[1].set_title(f'S-TSViT Prediction', fontsize=14)
         axes[1].axis('off')
 
-        # 3. Error Map (Difference)
+        # --- 3. Error Map (Difference) ---
         error_mask = (y_pred_np[idx] != y_true_np[idx]).astype(float)
-
+        
+        # Ignore Void class (19) errors
         void_mask = (y_true_np[idx] == 19)
         error_mask[void_mask] = 0
 
-        error_map = mcolors.ListedColormap(['black', 'red'])
+        # FIX: Variable name consistency (error_map vs error_cmap)
+        error_cmap = mcolors.ListedColormap(['black', 'red'])
 
         axes[2].imshow(error_mask, cmap=error_cmap, vmin=0, vmax=1, interpolation='nearest')
         axes[2].set_title(f"Error Map (Red = Mismatch)", fontsize=14)
         axes[2].axis('off')
 
-        #  --- Legend ---
-        # Only show legend for classes exist in image
-        unique_classes = np.unique(np.concatenate((y_true_np[dix], y_pred_np[idx])))
-        from spike_data.pastis_dataset import PASTIS_CLASSES
-
-        if isinstance(PASTIS_CLASSES, dict):
-            idx_to_name = PASTIS_CLASSES
+        # --- Legend ---
+        # FIX: typo 'dix' -> 'idx'
+        unique_classes = np.unique(np.concatenate((y_true_np[idx], y_pred_np[idx])))
+        
+        # FIX: Initialize the list!
+        patches = []
 
         for c in unique_classes:
             if c == 19: continue
@@ -478,12 +488,15 @@ def plot_segmentation_comparsion(model, loader, device, num_samples=3, save_dir=
             name = idx_to_name.get(c, f"Class {c}")
             patches.append(Patch(color=color, label=f'{c}: {name}'))
         
-        fig.legend(handles=patches, loc='center right', title="Crop Classes")
+        # Only add legend if we have classes to show
+        if patches:
+            fig.legend(handles=patches, loc='center right', title="Crop Classes")
+        
         plt.tight_layout()
         plt.subplots_adjust(right=0.85)
 
         # Save
-        save_path = f"{save_dir}/comparision_sample_{idx}.png"
+        save_path = f"{save_dir}/comparison_sample_{idx}.png"
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved visualization to {save_path}")
+        print(f"✅ Saved visualization to {save_path}")
         plt.close()
