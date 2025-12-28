@@ -284,7 +284,7 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 def plot_phenological_confusion(
     dataloader, 
     save_path="output/beet_vs_veg_phenology.png",
-    band_idx=3, # NIR is usually index 3 in S2 (B8) or 6 in S2 (B8A). Check your dataset!
+    band_idx=3, 
     band_name="NIR Intensity (Normalized)",
     num_samples=1000
 ):
@@ -325,7 +325,6 @@ def plot_phenological_confusion(
                 if mask.sum() > 0:
                     class_data = inputs[mask]
                     
-                    # Take only what we need
                     needed = num_samples - counts[cls_id]
                     to_take = class_data[:needed]
                     

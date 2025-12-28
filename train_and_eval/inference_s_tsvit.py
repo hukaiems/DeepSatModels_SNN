@@ -193,9 +193,7 @@ def main():
         print("🔎 Running Phenological Analysis...")
         plot_phenological_confusion(
             dataloader=val_loader, 
-            save_path="output/phenology_confusion.png", # Change path if needed
-            red_idx=2,   # Ensure this matches your data (Red)
-            nir_idx=3    # Ensure this matches your data (NIR)
+            save_path="output/phenology_confusion.png"
         )
         print("✅ Analysis Complete. Check output folder.")
 
