@@ -27,7 +27,7 @@ from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -74,6 +74,8 @@ def get_args():
                         help="Run confusion matrix of the checkpoint")
     parser.add_argument('--NDVI', action='store_true',
                         help="Run NDVI to check similar growth cycle for specific crop types")
+    parser.add_argument('--visual_comparision', action='store_true',
+                        help="Visualize the error map")
 
     return parser.parse_args()
 
@@ -175,6 +177,14 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+
+
+    # ---------------------------------------------------------
+    # Plot comparision
+    # ---------------------------------------------------------
+    if args.visual_comparision:
+        plot_segmentation_comparision(model, val_loader, device)
+
 
     # ---------------------------------------------------------
     # Plot NDVI similarity plot for growth cycle

@@ -7,8 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
-
 import os
+import matplotlib.colors as mcolors
+from matplotlib.patches import Patch
 
 def get_norm_layer_2d(norm_type, channels):
     """
@@ -385,3 +386,104 @@ def plot_phenological_confusion(
         
     plt.savefig(save_path, dpi=300)
     print(f"✅ Plot saved to: {save_path}")
+
+# ----------------
+# Visualizing 3 pictures, Ground truth, prediction and Error.
+# -----------------
+PASTIS_PALETTE = {
+    0:  (0.0, 0.0, 0.0),       # Background -> Black
+    1:  (1.0, 0.84, 0.0),      # Corn -> Gold
+    2:  (0.87, 0.72, 0.53),    # Wheat -> Wheat color
+    3:  (0.2, 0.8, 0.2),       # Winter Barley -> Green
+    4:  (0.55, 0.27, 0.07),    # Rapeseed -> SaddleBrown
+    5:  (1.0, 0.0, 1.0),       # Sunflower -> Magenta
+    6:  (0.5, 0.0, 0.5),       # Sugar Beet -> Purple
+    7:  (0.0, 0.0, 1.0),       # Meadow -> Blue
+    8:  (0.0, 0.5, 0.5),       # Forest -> Teal
+    9:  (0.5, 0.5, 0.5),       # Potato -> Gray
+    10: (0.6, 0.4, 0.2),       # Soya -> Brown
+    11: (1.0, 0.5, 0.0),       # Fodder -> Orange
+    12: (0.8, 0.8, 0.0),       # Triticale -> Olive
+    13: (0.8, 0.0, 0.0),       # Durum Wheat -> Dark Red
+    14: (0.0, 1.0, 0.0),       # Fruits/Veg -> Lime
+    15: (0.4, 0.2, 0.6),       # Vegetables -> Violet
+    16: (0.9, 0.6, 0.6),       # Legumes -> Pink
+    17: (0.3, 0.3, 0.0),       # Soybeans -> Dark Olive
+    18: (0.0, 0.0, 0.5),       # Sorghum -> Navy
+    19: (1.0, 1.0, 1.0),       # Void -> White
+}
+def create_cmap(num_classes=20):
+    num_classes=num_classes
+    colors = [PASTIS_PALETTE.get((i, (1.0, 1.0, 1.0)) for i in range(num_classes))]
+    return mcolors.ListedColormap(colors) # for matplotlib to load fast, plt is C++ cant load python list
+
+def plot_segmentation_comparsion(model, loader, device, num_samples=3, save_dir="output/"):
+    """
+    Plots: Ground Truth | Prediction | Error Map
+    """
+    model.eval()
+    cmap = create_cmap(20)
+
+    # a little uncomfortable cause I dont know the code too much
+    # Get a batch
+    batch = next(iter(loader))
+    x = batch['sequence'].to(device)
+    dates = batch['dates'].to(device)
+    y_true = batch['labels'].to(device)
+
+    with torch.no_grad():
+        logits = model(x, dates)
+        y_pred = torch.argmax(logits, dim=1) # [B, H, W]
+
+    # Convert to CPU numpy for plotting
+    y_true_np = y_true.cpu().numpy()
+    y_pred_np = y_pred.cpu().numpy()
+
+    for idx in range(min(num_samples, x.shape[0])):
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+        # 1. Ground Truth
+        im1 = axes[0].imshow(y_true_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
+        axes[0].set_title(f'Ground Truth (Sample {idx})', fontsize=14)
+        axes[0].axis('off')
+
+        # 2. Prediction
+        im2 = axes[1].imshow(y_true_np[idx], cmap=cmap. vmin=0, vmax=19, interpolation='nearest')
+        axes[1].set_title(f'S-TSViT Prediction', fontsize=14)
+        axes[1].axis('off')
+
+        # 3. Error Map (Difference)
+        error_mask = (y_pred_np[idx] != y_true_np[idx]).astype(float)
+
+        void_mask = (y_true_np[idx] == 19)
+        error_mask[void_mask] = 0
+
+        error_map = mcolors.ListedColormap(['black', 'red'])
+
+        axes[2].imshow(error_mask, cmap=error_cmap, vmin=0, vmax=1, interpolation='nearest')
+        axes[2].set_title(f"Error Map (Red = Mismatch)", fontsize=14)
+        axes[2].axis('off')
+
+        #  --- Legend ---
+        # Only show legend for classes exist in image
+        unique_classes = np.unique(np.concatenate((y_true_np[dix], y_pred_np[idx])))
+        from spike_data.pastis_dataset import PASTIS_CLASSES
+
+        if isinstance(PASTIS_CLASSES, dict):
+            idx_to_name = PASTIS_CLASSES
+
+        for c in unique_classes:
+            if c == 19: continue
+            color = PASTIS_PALETTE.get(c, (0, 0, 0))
+            name = idx_to_name.get(c, f"Class {c}")
+            patches.append(Patch(color=color, label=f'{c}: {name}'))
+        
+        fig.legend(handles=patches, loc='center right', title="Crop Classes")
+        plt.tight_layout()
+        plt.subplots_adjust(right=0.85)
+
+        # Save
+        save_path = f"{save_dir}/comparision_sample_{idx}.png"
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved visualization to {save_path}")
+        plt.close()
