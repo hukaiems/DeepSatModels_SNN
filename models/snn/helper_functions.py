@@ -287,7 +287,7 @@ def plot_phenological_confusion(
     band_idx=3, 
     band_name="NIR Intensity (Normalized)",
     num_samples=1000,
-    window_sizes=5
+    window_size=5
 ):
     # --- 1. CONFIGURATION ---
     # We compare your specific confused classes against a distinct control
