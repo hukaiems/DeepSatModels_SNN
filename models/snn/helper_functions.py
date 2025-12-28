@@ -283,18 +283,17 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 
 def plot_phenological_confusion(
     dataloader, 
-    save_path="output/beet_vs_veg_phenology.png",
+    save_path="output/triticale_vs_wheat_phenology.png", # Updated filename
     band_idx=3, 
     band_name="NIR Intensity (Normalized)",
     num_samples=1000,
     window_size=5
 ):
     # --- 1. CONFIGURATION ---
-    # We compare your specific confused classes against a distinct control
+    # CORRECTION: Triticale is ID 10, Wheat is ID 2
     class_map = {
-        9: "Sugar Beet (Class 9)",        # The User's specific focus
-        12: "Fruits/Veg (Class 12)",      # The Confusing Class
-        2: "Winter Wheat (Control)"       # Control: Should look different
+        10: "Winter Triticale (Class 10)",      # The Confusing Class
+        2: "Soft Winter Wheat (Class 2)"        # The Control Class
     }
 
     # Setup storage
@@ -316,7 +315,7 @@ def plot_phenological_confusion(
                 inputs = inputs.permute(0, 3, 4, 1, 2).reshape(-1, T, C)
                 targets = targets.view(-1)
             
-            # Loop through our 3 target classes
+            # Loop through our target classes
             for cls_id in class_map.keys():
                 # Skip if we already have enough data for this class
                 if counts[cls_id] >= num_samples: continue
@@ -332,7 +331,7 @@ def plot_phenological_confusion(
                     profiles[cls_id].append(to_take.numpy())
                     counts[cls_id] += len(to_take)
 
-            # Break early if we have full sets for all 3 classes
+            # Break early if we have full sets
             if all(c >= num_samples for c in counts.values()):
                 break
 
@@ -345,9 +344,10 @@ def plot_phenological_confusion(
     # --- 3. PLOTTING ---
     plt.figure(figsize=(12, 7))
     
-    # Thesis colors: Beet (Red-ish), Veg (Green-ish), Wheat (Blue/Grey)
-    colors = {9: '#d62728', 12: '#2ca02c', 2: '#1f77b4'} 
-    styles = {9: '-', 12: '--', 2: ':'}
+    # CORRECTION: Updated keys to match class_map (10 and 2)
+    # Triticale (Orange-ish to stand out), Wheat (Blue standard)
+    colors = { 10: '#ff7f0e', 2: '#1f77b4'} 
+    styles = { 10: '--', 2: '-'}
     
     found_any = False
     
@@ -358,13 +358,13 @@ def plot_phenological_confusion(
         
         found_any = True
         
-        # Concatenate all pixels: [Total_Samples, Time, Channels]
+        # Concatenate all pixels
         data_block = np.concatenate(profiles[cls_id], axis=0)
         
-        # Extract the specific band (e.g., NIR)
+        # Extract the specific band
         band_data = data_block[:, :, band_idx]
         
-        # Calculate Mean and Std Deviation (for the shadow)
+        # Calculate Mean and Std
         mean_profile = np.mean(band_data, axis=0)
         std_profile = np.std(band_data, axis=0)
 
@@ -377,13 +377,13 @@ def plot_phenological_confusion(
         plt.plot(x_axis, smooth_mean, label=name, 
                  color=colors[cls_id], linestyle=styles[cls_id], linewidth=3)
         
-        # Plot Smoothed Shadow
+        # Plot Shadow
         plt.fill_between(x_axis, smooth_mean - 0.5*smooth_std, 
                          smooth_mean + 0.5*smooth_std, 
                          color=colors[cls_id], alpha=0.15)
 
     if found_any:
-        plt.title(f"Spectral Profile Analysis: Why Confusion Happens\n({band_name})", fontsize=16)
+        plt.title(f"Spectral Profile Overlap: Triticale vs. Wheat\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
         plt.legend(fontsize=12, loc='upper right')
