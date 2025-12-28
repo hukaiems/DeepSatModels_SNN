@@ -11,6 +11,7 @@ import os
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 from spike_data.pastis_dataset import PASTIS_CLASSES
+import random
 
 def get_norm_layer_2d(norm_type, channels):
     """
@@ -426,12 +427,18 @@ def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir=
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    
+
     model.eval()
     cmap = create_cmap(20)
 
-    # Get a batch
-    batch = next(iter(loader))
+    # Get a random batch
+    random_idx = random.randint(0, len(loader) - 1)
+    data_iter = iter(loader)
+    for _ in range(random_idx):
+        next(data_iter)
+    
+    batch = next(data_iter)
+
     x = batch['sequence'].to(device)
     dates = batch['dates'].to(device)
     y_true = batch['labels'].to(device)
