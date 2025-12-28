@@ -416,6 +416,16 @@ PASTIS_PALETTE = {
 }
 
 # --- 1. Fix the Color Map Creator ---
+
+def normalize_for_display(img_tensor):
+    """
+    Revert back value from [0, 10k] to [0, 1] then multiply for 255 for rgb range.
+    """
+    img = img_tensor.permute(1, 2, 0).cpu().numpy() #[H, W, 3]
+    p2, p98 = np.percentile(img, (2, 98))
+    img = np.clip((img - p2) / (p98 - p2), 0, 1)
+    return img
+
 def create_cmap(num_classes=20):
     # FIX: Cleaned up the list comprehension
     colors = [PASTIS_PALETTE.get(i, (0, 0, 0)) for i in range(num_classes)]
@@ -458,19 +468,30 @@ def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir=
         idx_to_name = {i: name for i, name in enumerate(PASTIS_CLASSES)}
 
     for idx in range(min(num_samples, x.shape[0])):
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig, axes = plt.subplots(1, 4, figsize=(24, 6))
+
+
+        # --- 0. Optical RGB 
+        rgb_bands = x[idx, :, [2, 1, 0], :, :]
+        median_rgb = torch.median(rgb_bands, dim=0)[0]
+        rgb_display = normalize_for_display(median_rgb)
+
+        axes[0].imshow(rgb_display)
+        axes[0].set_title(f'Optical Image (Median)', fontsize=14)
+        axes[0].axis('off')
+
 
         # --- 1. Ground Truth ---
-        im1 = axes[0].imshow(y_true_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
-        axes[0].set_title(f'Ground Truth (Sample {idx})', fontsize=14)
-        axes[0].axis('off')
+        im1 = axes[1].imshow(y_true_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
+        axes[1].set_title(f'Ground Truth (Sample {idx})', fontsize=14)
+        axes[1].axis('off')
 
         # --- 2. Prediction ---
         # FIX: You were plotting y_true_np again! Changed to y_pred_np.
         # FIX: Fixed the syntax error (dot -> comma)
-        im2 = axes[1].imshow(y_pred_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
-        axes[1].set_title(f'S-TSViT Prediction', fontsize=14)
-        axes[1].axis('off')
+        im2 = axes[2].imshow(y_pred_np[idx], cmap=cmap, vmin=0, vmax=19, interpolation='nearest')
+        axes[2].set_title(f'S-TSViT Prediction', fontsize=14)
+        axes[2].axis('off')
 
         # --- 3. Error Map (Difference) ---
         error_mask = (y_pred_np[idx] != y_true_np[idx]).astype(float)
@@ -482,9 +503,9 @@ def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir=
         # FIX: Variable name consistency (error_map vs error_cmap)
         error_cmap = mcolors.ListedColormap(['black', 'red'])
 
-        axes[2].imshow(error_mask, cmap=error_cmap, vmin=0, vmax=1, interpolation='nearest')
-        axes[2].set_title(f"Error Map (Red = Mismatch)", fontsize=14)
-        axes[2].axis('off')
+        axes[3].imshow(error_mask, cmap=error_cmap, vmin=0, vmax=1, interpolation='nearest')
+        axes[3].set_title(f"Error Map (Red = Mismatch)", fontsize=14)
+        axes[3].axis('off')
 
         # --- Legend ---
         # FIX: typo 'dix' -> 'idx'
@@ -504,7 +525,7 @@ def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir=
             fig.legend(handles=patches, loc='center right', title="Crop Classes")
         
         plt.tight_layout()
-        plt.subplots_adjust(right=0.85)
+        plt.subplots_adjust(right=0.88)
 
         # Save
         save_path = f"{save_dir}/comparison_sample_{idx}.png"
