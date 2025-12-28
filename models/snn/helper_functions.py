@@ -283,111 +283,110 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 
 def plot_phenological_confusion(
     dataloader, 
-    save_path="phenological_confusion.png",
-    red_idx=2, 
-    nir_idx=3, 
+    save_path="output/beet_vs_veg_phenology.png",
+    band_idx=3, # NIR is usually index 3 in S2 (B8) or 6 in S2 (B8A). Check your dataset!
+    band_name="NIR Intensity (Normalized)",
     num_samples=1000
 ):
-
-    # Define the classes we want to compare
+    # --- 1. CONFIGURATION ---
+    # We compare your specific confused classes against a distinct control
     class_map = {
-        3: "Corn (Summer)",       # The confusing class
-        18: "Sorghum (Summer)",   # The confusing class
-        2: "Winter Wheat (Winter)" # Control class
+        9: "Sugar Beet (Class 9)",        # The User's specific focus
+        12: "Fruits/Veg (Class 12)",      # The Confusing Class
+        2: "Winter Wheat (Control)"       # Control: Should look different
     }
 
-    # empty list and counter to store values 
+    # Setup storage
     profiles = {k: [] for k in class_map.keys()}
     counts = {k: 0 for k in class_map.keys()}
 
-    print(f"📊 Collecting spectral profiles for: {list(class_map.values())}...")
+    print(f"📊 Scanning dataset for: {list(class_map.values())}...")
 
+    # --- 2. DATA COLLECTION ---
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Scanning Dataset"):
-            if isinstance(batch, dict):
-                inputs = batch['sequence']
-                targets = batch['labels']
+        for batch in tqdm(dataloader, desc="Collecting Profiles"):
+            inputs = batch['sequence'].cpu()
+            targets = batch['labels'].cpu()
 
-            else:
-                print("Unknown batch format. Skipping.")
-                continue
-
-            inputs = inputs.cpu()
-            targets = targets.cpu()
-            
-            # Shape check and flattening
+            # Flatten batch dimensions: [B, T, C, H, W] -> [N, T, C]
             if inputs.dim() == 5:
                 B, T, C, H, W = inputs.shape
-
-                # Permute to (Batch, H, W, Time, Channels) -> Flatten to (N, T, C)
+                # Permute to put H,W alongside Batch, then flatten
                 inputs = inputs.permute(0, 3, 4, 1, 2).reshape(-1, T, C)
                 targets = targets.view(-1)
-
-            # Extract samples for each target class
+            
+            # Loop through our 3 target classes
             for cls_id in class_map.keys():
-                # If enough data, skip.
-                if counts[cls_id] >= num_samples:
-                    continue
+                # Skip if we already have enough data for this class
+                if counts[cls_id] >= num_samples: continue
 
+                # Find pixels belonging to this class
                 mask = (targets == cls_id)
-                if mask.sum() == 0:
-                    continue
+                if mask.sum() > 0:
+                    class_data = inputs[mask]
+                    
+                    # Take only what we need
+                    needed = num_samples - counts[cls_id]
+                    to_take = class_data[:needed]
+                    
+                    profiles[cls_id].append(to_take.numpy())
+                    counts[cls_id] += len(to_take)
 
-                # Extract and store
-                class_pixels = inputs[mask]
-                n_take = min(num_samples - counts[cls_id], len(class_pixels))
-                profiles[cls_id].append(class_pixels[:n_take].numpy())
-                counts[cls_id] += n_take
-
+            # Break early if we have full sets for all 3 classes
             if all(c >= num_samples for c in counts.values()):
                 break
-    
 
-    # --- PLOTTING ---
-    print("📈 Generating NDVI Plot...")
-    plt.figure(figsize=(10, 6))
-    plt.title("Spectral Phenology Profile: The Source of Confusion", fontsize=14)
-    plt.xlabel("Time Steps (Acquisition Dates)", fontsize=12)
-    plt.ylabel("NDVI (Vegetation Health)", fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.6)
-
-    colors = {3: 'green', 18: 'red', 2: 'blue'}
-    styles = {3: '-', 18: '--', 2: ':'}
+    # --- 3. PLOTTING ---
+    plt.figure(figsize=(12, 7))
     
-    # Plot each class
+    # Thesis colors: Beet (Red-ish), Veg (Green-ish), Wheat (Blue/Grey)
+    colors = {9: '#d62728', 12: '#2ca02c', 2: '#1f77b4'} 
+    styles = {9: '-', 12: '--', 2: ':'}
+    
+    found_any = False
+    
     for cls_id, name in class_map.items():
-        if len(profiles[cls_id]) == 0:
+        if len(profiles[cls_id]) == 0: 
             print(f"⚠️ Warning: No samples found for {name}")
             continue
-            
-        data = np.concatenate(profiles[cls_id], axis=0) # Shape: (N, T, C)
         
-        # Calculate NDVI: (NIR - Red) / (NIR + Red)
-        red_band = data[:, :, red_idx]
-        nir_band = data[:, :, nir_idx]
+        found_any = True
         
-        # Handle Potential Division by Zero
-        ndvi = (nir_band - red_band) / (nir_band + red_band + 1e-6)
+        # Concatenate all pixels: [Total_Samples, Time, Channels]
+        data_block = np.concatenate(profiles[cls_id], axis=0)
         
-        # Calculate Statistics
-        mean_ndvi = np.mean(ndvi, axis=0)
-        std_ndvi = np.std(ndvi, axis=0)
-        x_axis = np.arange(len(mean_ndvi))
+        # Extract the specific band (e.g., NIR)
+        band_data = data_block[:, :, band_idx]
         
-        # Plot
-        plt.plot(x_axis, mean_ndvi, label=name, color=colors[cls_id], linestyle=styles[cls_id], linewidth=2)
-        plt.fill_between(x_axis, mean_ndvi - 0.2*std_ndvi, mean_ndvi + 0.2*std_ndvi, color=colors[cls_id], alpha=0.1)
+        # Calculate Mean and Std Deviation (for the shadow)
+        mean_profile = np.mean(band_data, axis=0)
+        std_profile = np.std(band_data, axis=0)
+        x_axis = np.arange(len(mean_profile))
 
-    plt.legend(fontsize=12)
-    plt.tight_layout()
-    
-    # Save directory check
-    save_dir = os.path.dirname(save_path)
-    if save_dir and not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+        # Plot Line
+        plt.plot(x_axis, mean_profile, label=name, 
+                 color=colors[cls_id], linestyle=styles[cls_id], linewidth=3)
         
-    plt.savefig(save_path, dpi=300)
-    print(f"✅ Plot saved to: {save_path}")
+        # Plot Shadow (Variance) - divided by 2 for cleaner visualization
+        plt.fill_between(x_axis, mean_profile - 0.5*std_profile, 
+                         mean_profile + 0.5*std_profile, 
+                         color=colors[cls_id], alpha=0.15)
+
+    if found_any:
+        plt.title(f"Spectral Profile Analysis: Why Confusion Happens\n({band_name})", fontsize=16)
+        plt.xlabel("Time Steps (Season)", fontsize=14)
+        plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
+        plt.legend(fontsize=12, loc='upper right')
+        plt.grid(True, linestyle='--', alpha=0.6)
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300)
+        print(f"✅ Saved Analysis Plot to {save_path}")
+    else:
+        print("❌ Failed to generate plot: No data found for selected classes.")
+
+# USAGE:
+# plot_phenological_confusion(val_loader, band_idx=3)
 
 # ----------------
 # Visualizing 3 pictures, Ground truth, prediction and Error.
@@ -431,7 +430,7 @@ def create_cmap(num_classes=20):
     colors = [PASTIS_PALETTE.get(i, (0, 0, 0)) for i in range(num_classes)]
     return mcolors.ListedColormap(colors)
 
-def plot_segmentation_comparison(model, loader, device, num_samples=3, save_dir="output"):
+def plot_segmentation_comparison(model, loader, device, num_samples=5, save_dir="output"):
     """
     Plots: Ground Truth | Prediction | Error Map
     """
