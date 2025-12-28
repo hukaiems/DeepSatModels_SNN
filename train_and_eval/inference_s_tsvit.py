@@ -74,7 +74,7 @@ def get_args():
                         help="Run confusion matrix of the checkpoint")
     parser.add_argument('--NDVI', action='store_true',
                         help="Run NDVI to check similar growth cycle for specific crop types")
-    parser.add_argument('--visual_comparision', action='store_true',
+    parser.add_argument('--visual_comparison', action='store_true',
                         help="Visualize the error map")
 
     return parser.parse_args()
@@ -182,8 +182,8 @@ def main():
     # ---------------------------------------------------------
     # Plot comparision
     # ---------------------------------------------------------
-    if args.visual_comparision:
-        plot_segmentation_comparision(model, val_loader, device)
+    if args.visual_comparison:
+        plot_segmentation_comparison(model, val_loader, device)
 
 
     # ---------------------------------------------------------
