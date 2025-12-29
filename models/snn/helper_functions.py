@@ -346,7 +346,7 @@ def plot_phenological_confusion(
     
     # CORRECTION: Updated keys to match class_map (10 and 2)
     # Triticale (Orange-ish to stand out), Wheat (Blue standard)
-    colors = { 10: '#ff7f0e', 17: '#9DFF9C'} 
+    colors = { 10: '#ff7f0e', 17: '#58E074'} 
     styles = { 10: '--', 17: '-'}
     
     found_any = False
@@ -383,7 +383,7 @@ def plot_phenological_confusion(
                          color=colors[cls_id], alpha=0.15)
 
     if found_any:
-        plt.title(f"Spectral Profile Overlap: Triticale vs. Wheat\n({band_name})", fontsize=16)
+        plt.title(f"Spectral Profile Overlap: Triticale vs. Mixed Cereal\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
         plt.legend(fontsize=12, loc='upper right')
