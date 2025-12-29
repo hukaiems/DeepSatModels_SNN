@@ -21,7 +21,7 @@ import torch.optim as optim  # optimizer lib like adam, sgd, ...
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import pandas as pd
-from torchmetrics.classification import MulticlassJaccardIndex # mIoU score
+from torchmetrics.classification import MulticlassJaccardIndex, MulticlassAccuracy # mIoU and OA score
 
 from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset
@@ -235,8 +235,9 @@ def main():
     # Accuracy Evaluation (mIoU)
     # ---------------------------------------------------------
     print("\n--- 🎯 Starting Accuracy Evaluation ---")
-    metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
-    
+    miou_metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
+    oa_metric = MulticlassAccuracy(num_classes=num_classes, average='micro', ignore_index=ignore_index).to(device)
+
     if args.inference:
         with torch.no_grad():
             for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
@@ -249,14 +250,17 @@ def main():
                 preds = torch.argmax(logits, dim=1)
                 
                 # Update Metric
-                metric.update(preds, y)
-                
+                miou_metric.update(preds, y)
+                oa_metric.update(preds, y)
+
                 # Reset SNN states (Voltage = 0)
                 reset_net(model)
 
-        final_miou = metric.compute().item()
+        final_miou = miou_metric.compute().item()
+        final_oa = oa_metric.compute().item()
         print(f"\n=========================================")
         print(f"🏆 Final Test mIoU: {final_miou:.4f}")
+        print(f"🎯 Final Test OA: {final_oa:.4f}")
         print(f"=========================================\n")
 
 if __name__ == "__main__": # only run if execute python command.
