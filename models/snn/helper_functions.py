@@ -293,7 +293,7 @@ def plot_phenological_confusion(
     # CORRECTION: Triticale is ID 10, Wheat is ID 2
     class_map = {
         10: "Winter Triticale (Class 10)",      # The Confusing Class
-        2: "Soft Winter Wheat (Class 2)"        # The Control Class
+        17: "Mixed Cereal (Class 17)"        # The Control Class
     }
 
     # Setup storage
@@ -346,8 +346,8 @@ def plot_phenological_confusion(
     
     # CORRECTION: Updated keys to match class_map (10 and 2)
     # Triticale (Orange-ish to stand out), Wheat (Blue standard)
-    colors = { 10: '#ff7f0e', 2: '#1f77b4'} 
-    styles = { 10: '--', 2: '-'}
+    colors = { 10: '#ff7f0e', 17: '#9DFF9C'} 
+    styles = { 10: '--', 17: '-'}
     
     found_any = False
     
