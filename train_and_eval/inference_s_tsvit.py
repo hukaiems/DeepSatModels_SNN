@@ -239,6 +239,9 @@ def main():
     oa_metric = MulticlassAccuracy(num_classes=num_classes, average='micro', ignore_index=ignore_index).to(device)
 
     if args.inference:
+        reset_net(model)
+        model.eval()
+        
         with torch.no_grad():
             for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
                 x = batch['sequence'].to(device)
