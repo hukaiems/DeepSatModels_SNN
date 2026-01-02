@@ -1,5 +1,6 @@
 import sys
 import os
+from torch.cuda.amp import autocast, GradScaler
 
 # 1. Get the directory of the current script (train_stsvit.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -97,17 +98,21 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         dates = batch['dates'].to(device)
         y = batch['labels'].to(device)
 
-        # clearGrad->logit->computeLoss->backprobagation->learn->resetLIF
-        logits = model(x, dates)
-        loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
+        # Amp utilized
+        with autocast():
+            # clear->logit->computeLoss->backprobagation->learn->resetLIF
+            logits = model(x, dates)
+            loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
 
-        # 2 Scale loss due to the fact crossentropy cals 4 imgs a time.
-        loss = loss / accum_steps
-        loss.backward()
+            # 2 Scale loss due to the fact crossentropy cals 4 imgs a time.
+            loss = loss / accum_steps
+
+        scaler.scale(loss).backward()
 
         # 3. Conditional Update
         if (i + 1) % accum_steps == 0:
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update() # Update the scale factor for next batch
             optimizer.zero_grad()
 
         reset_net(model) # delete the voltage left out of LIF
@@ -247,6 +252,8 @@ def main():
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
+    scaler = GradScaler()
+
     # focal loss or standard loss        
     if args.loss_type == 'focal':
         print("Mode: Focal loss ( Auto Focusing)")
@@ -307,7 +314,7 @@ def main():
 
     # Training loop
     for epoch in range(start_epoch, args.epochs):
-        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, accum_steps=args.grad_accum_steps, disable_tqdm=args.no_progress_bar)
+        train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, accum_steps=args.grad_accum_steps, disable_tqdm=args.no_progress_bar, scaler=scaler)
         val_miou = evaluate(model, val_loader, metric, device, disable_tqdm=args.no_progress_bar)
         
         # apply scheduler
