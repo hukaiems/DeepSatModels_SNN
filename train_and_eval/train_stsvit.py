@@ -85,7 +85,7 @@ def get_args():
 
 # --- HELPER FUNCTIONS ---
 
-def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False, dynamic_ncols=True):
+def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps, disable_tqdm=False, dynamic_ncols=True, scaler=None):
     model.train() # set model to train
     total_loss = 0.0
     optimizer.zero_grad() # set zero grad
