@@ -8,6 +8,15 @@ import os
 import random
 
 # --- CONSTANTS ---
+
+FRANCE_CLASSES = [
+    "0: Background", "1: Meadow", "2: Soft Winter Wheat", "3: Corn", 
+    "4: Winter Barley", "5: Winter Rapeseed", "6: Spring Barley", "7: Sunflower", 
+    "8: Grapevine", "9: Beet", "10: Winter Triticale", "11: Winter Durum Wheat", 
+    "12: Fruits/Veg/Flowers", "13: Potatoes", "14: Leguminous Fodder", "15: Soybeans", 
+    "16: Orchard", "17: Mixed Cereal", "18: Sorghum", "19: Unknow", "20: Void Label"
+]
+
 # label remap
 REMAP_DICT = {0: 20,
               1: 0, 2: 1, 3: 2,
