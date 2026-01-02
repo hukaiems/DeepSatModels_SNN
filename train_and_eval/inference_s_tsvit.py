@@ -152,7 +152,7 @@ def main():
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
-        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=False
+        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
     )
 
     # 2. Model Setup
@@ -241,7 +241,7 @@ def main():
     if args.inference:
         reset_net(model)
         model.eval()
-        
+
         with torch.no_grad():
             for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
                 x = batch['sequence'].to(device)

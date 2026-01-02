@@ -230,7 +230,7 @@ def main():
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
-        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=False
+        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
     )
 
     # 2. Model Setup
