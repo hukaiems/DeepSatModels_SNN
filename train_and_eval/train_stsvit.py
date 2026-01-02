@@ -216,7 +216,7 @@ def main():
         print(f"   Val:   {args.val_csv_path}")
 
         train_df = pd.read_csv(args.csv_path, header=None)
-        val_df = pd.read_csv(args.csv_path, header=None)
+        val_df = pd.read_csv(args.val_csv_path, header=None)
     else:       
         print(f"🧪 Experiment Mode: Randomly splitting single CSV.")
         print(f"   Source: {args.csv_path}")
