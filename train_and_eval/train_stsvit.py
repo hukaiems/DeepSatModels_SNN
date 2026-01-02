@@ -123,7 +123,8 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         
     # Handle Leftovers
     if (len(dataloader) % accum_steps) != 0:
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         optimizer.zero_grad()
         reset_net(model)
 
