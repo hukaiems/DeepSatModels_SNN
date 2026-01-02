@@ -24,7 +24,7 @@ import pandas as pd
 from torchmetrics.classification import MulticlassJaccardIndex, MulticlassAccuracy # mIoU and OA score
 
 from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
-from spike_data.france_dataset import FranceDataset
+from spike_data.france_dataset import FranceDataset, FRANCE_CLASSES
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
 from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison, analyze_temporal_importance
