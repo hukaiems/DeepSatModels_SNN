@@ -112,7 +112,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
 
         reset_net(model) # delete the voltage left out of LIF
 
-        total_loss += loss.item()
+        total_loss += loss.item() * accum_steps
         if not disable_tqdm:
             progress_bar.set_postfix(loss=loss.item() * accum_steps)# text after the bar display instantly
         
@@ -230,7 +230,7 @@ def main():
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
-        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
+        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=False
     )
 
     # 2. Model Setup
