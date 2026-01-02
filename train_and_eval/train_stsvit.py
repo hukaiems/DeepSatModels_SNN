@@ -1,6 +1,6 @@
 import sys
 import os
-from torch.cuda.amp import autocast, GradScaler
+from torch.cuda.amp import GradScaler
 
 # 1. Get the directory of the current script (train_stsvit.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -99,7 +99,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         y = batch['labels'].to(device)
 
         # Amp utilized
-        with autocast():
+        with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
             # clear->logit->computeLoss->backprobagation->learn->resetLIF
             logits = model(x, dates)
             loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
@@ -231,12 +231,12 @@ def main():
 
     train_loader = DataLoader(
         DatasetLoader(train_df, args.data_root, max_seq_len=args.max_seq_len, mode='train'),
-        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True
+        batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True, pin_memory=True
     )
 
     val_loader = DataLoader(
         DatasetLoader(val_df, args.data_root, max_seq_len=args.max_seq_len, mode='eval'),
-        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True
+        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, drop_last=True, pin_memory=True
     )
 
     # 2. Model Setup
