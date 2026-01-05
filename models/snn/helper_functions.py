@@ -630,46 +630,39 @@ def analyze_temporal_importance(model, loader, device, save_dir="output", target
 
 
 def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="output/cloud_analysis"):
-    """
-    Scans the dataset for the 'Cloudiest' samples and plots the model's reaction.
-    """
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
     
-    # We need a custom France Palette (21 classes)
-    # Using a generated distinct colormap
+    # Custom Palette
     france_colors = [
         'black', 'green', 'gold', 'yellow', 'brown', 'orange', 
         'lime', 'cyan', 'purple', 'pink', 'olive', 'teal', 
         'red', 'blue', 'magenta', 'gray', 'lightgreen', 'darkblue', 
-        'salmon', 'indigo', 'white' # 20: Void
+        'salmon', 'indigo', 'white'
     ]
     cmap = mcolors.ListedColormap(france_colors)
     
-    print("⚡ Scanning for cloudy samples (High Intensity)...")
-    
+    print("⚡ Scanning for cloudy samples (Max Intensity Method)...")
     cloud_candidates = []
 
-    # 1. SCANNING PHASE
     with torch.no_grad():
         for i, batch in enumerate(tqdm(loader, desc="Scanning")):
             x = batch['sequence'] # [B, T, C, H, W]
             
-            # Heuristic: Calculate mean intensity of RGB bands (Idx 1,2,3)
-            # Cloud = High Values. 
-            # Since data is normalized, High > 2.0 or 3.0 usually.
-            # We take the max value across time/space to find "Brightest" patches
+            # --- FIX: DETECT BRIGHTEST TIME STEP ---
+            # 1. Select RGB channels (1, 2, 3)
+            # 2. Mean over Channels (dim 2) -> [B, T, H, W]
+            # 3. MAX over Time (dim 1) -> [B, H, W] (Finds the brightest day for each pixel)
             
-            # Taking mean of RGB channels
-            rgb_intensity = x[:, :, 1:4, :, :].mean(dim=(1,2)) # [B, H, W]
+            rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) 
+            max_brightness_per_pixel, _ = rgb_mean.max(dim=1) 
             
-            # Score = How many pixels are "Very Bright" (Likely Cloud)
-            # Threshold 2.0 is roughly > 3000 raw value after normalization
-            cloud_score = (rgb_intensity > 2.0).float().mean(dim=(1,2)) # [B]
+            # Check how much of the image is "Bright" (> 2.0 std devs is safe for thick clouds)
+            cloud_score = (max_brightness_per_pixel > 2.0).float().mean(dim=(1,2)) # [B]
             
             for b in range(x.shape[0]):
                 score = cloud_score[b].item()
-                if score > 0.05: # At least 5% cloud cover
+                if score > 0.10: # If >10% of the image is bright on its brightest day
                     cloud_candidates.append({
                         'score': score,
                         'batch_idx': i,
@@ -681,70 +674,61 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
                         }
                     })
             
-            if len(cloud_candidates) > 50: break # Stop scanning after finding enough
+            if len(cloud_candidates) > 20: break 
 
-    # Sort by cloudiest (Highest Score)
+    # Sort and Plot
     cloud_candidates.sort(key=lambda k: k['score'], reverse=True)
     top_clouds = cloud_candidates[:num_samples]
     
     print(f"📸 Found {len(top_clouds)} cloudy samples. Generating plots...")
 
-    # 2. PLOTTING PHASE
     for idx, item in enumerate(top_clouds):
         x = item['data']['sequence'].to(device)
         dates = item['data']['dates'].to(device)
         y_true = item['data']['labels'].to(device)
         
-        # Inference
         logits = model(x, dates)
         y_pred = torch.argmax(logits, dim=1)
         
-        # Prepare for Plotting
-        # Create RGB Composite (Median over time) to show the "Cloud" clearly
-        # We need to un-normalize strictly for display: x * std + mean
-        # Approx Mean=2000, Std=1600. 
-        # But simpler: just normalize min-max for display
-        rgb_tensor = x[0, :, [3, 2, 1], :, :] # Red(3), Green(2), Blue(1)
+        # --- PREPARE IMAGE DISPLAY ---
+        # We want to show the SPECIFIC TIME STEP that triggered the cloud detection
+        # Re-calculate max to find the index
+        rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) # [1, T, H, W]
+        spatial_mean = rgb_mean.mean(dim=(2,3))    # [1, T]
+        cloudiest_t = torch.argmax(spatial_mean, dim=1).item()
         
-        # Find the time step with the MOST cloud (max brightness)
-        # to show the "Bad Day"
-        brightness_per_t = rgb_tensor.mean(dim=(1,2,3))
-        cloudiest_t = torch.argmax(brightness_per_t).item()
+        # Extract that specific day for plotting
+        rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] # Red, Green, Blue
+        img_display = rgb_tensor.permute(1, 2, 0).cpu().numpy()
         
-        img_display = rgb_tensor[cloudiest_t].permute(1, 2, 0).cpu().numpy()
-        
-        # Clip and Normalize for visual
+        # Clip/Normalize
         p2, p98 = np.percentile(img_display, (2, 98))
         img_display = np.clip((img_display - p2) / (p98 - p2), 0, 1)
 
         y_true_np = y_true[0].cpu().numpy()
         y_pred_np = y_pred[0].cpu().numpy()
         
-        # --- PLOT ---
+        # Plotting (Same as before)
         fig, axes = plt.subplots(1, 4, figsize=(24, 6))
         
-        # 1. Cloud Image
         axes[0].imshow(img_display)
-        axes[0].set_title(f'T31TFM Input (Time: {cloudiest_t})\nSevere Cloud Artifact', fontsize=14, color='red')
+        axes[0].set_title(f'T31TFM Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
         axes[0].axis('off')
         
-        # 2. Ground Truth
         axes[1].imshow(y_true_np, cmap=cmap, vmin=0, vmax=20, interpolation='nearest')
         axes[1].set_title('Ground Truth', fontsize=14)
         axes[1].axis('off')
         
-        # 3. Prediction
         axes[2].imshow(y_pred_np, cmap=cmap, vmin=0, vmax=20, interpolation='nearest')
-        axes[2].set_title(f'S-TSViT Prediction\n(Note: Failure areas)', fontsize=14)
+        axes[2].set_title('S-TSViT Prediction', fontsize=14)
         axes[2].axis('off')
         
-        # 4. Error Map
         err_mask = (y_pred_np != y_true_np)
         axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest')
-        axes[3].set_title('Error Map (Red = Fail)', fontsize=14)
+        axes[3].set_title('Error Map', fontsize=14)
         axes[3].axis('off')
         
         save_path = f"{save_dir}/cloud_fail_{idx}.png"
         plt.savefig(save_path, bbox_inches='tight')
-        print(f"✅ Saved failure plot to {save_path}")
+        print(f"✅ Saved plot: {save_path}")
         plt.close()
