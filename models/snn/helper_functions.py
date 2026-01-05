@@ -688,19 +688,36 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
     cloud_candidates = []
 
     with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc="Scanning")):
+        for i, batch in enumerate(tqdm(loader, desc="Scanning for Hidden Haze")):
             x = batch['sequence'] # [B, T, C, H, W]
+            y = batch['labels']   # [B, H, W]
             
-            # Detect brightest time step
+            # 1. Find the Brightest Day per pixel (Spatial Intensity)
             rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) 
-            max_brightness_per_pixel, _ = rgb_mean.max(dim=1) 
+            max_brightness_per_pixel, _ = rgb_mean.max(dim=1) # [B, H, W]
             
-            # Threshold > 2.0
-            cloud_score = (max_brightness_per_pixel > 2.0).float().mean(dim=(1,2)) 
+            # 2. Define "Valid" Pixels (Not Void)
+            # We want to find pixels that are BRIGHT but marked as VALID CROPS
+            is_valid_crop = (y != void_idx) 
+            
+            # 3. Calculate "Unfairness Score"
+            # We look for pixels that are Bright (> 1.5 std) AND Valid
+            # Note: We lower threshold to 1.5 to catch "Haze" not just "Thick Cloud"
+            haze_mask = (max_brightness_per_pixel > 1.5) & is_valid_crop
+            
+            # Score = How much of the VALID crop area is covered in Haze?
+            # We sum the haze pixels and divide by total valid pixels (avoid divide by 0)
+            valid_pixel_count = is_valid_crop.sum(dim=(1,2)).float()
+            hazy_pixel_count = haze_mask.float().sum(dim=(1,2))
+            
+            haze_score = hazy_pixel_count / (valid_pixel_count + 1e-6)
             
             for b in range(x.shape[0]):
-                score = cloud_score[b].item()
-                if score > 0.10: 
+                score = haze_score[b].item()
+                
+                # Only keep if there is substantial valid crop content (>100 pixels)
+                # and substantial haze (>10% of crop is hazy)
+                if score > 0.10 and valid_pixel_count[b] > 100: 
                     cloud_candidates.append({
                         'score': score,
                         'batch_idx': i,
@@ -711,7 +728,8 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
                             'labels': batch['labels'][b].unsqueeze(0)
                         }
                     })
-            if len(cloud_candidates) > 1000: break 
+            
+            if len(cloud_candidates) > 50: break
 
     # Sort
     cloud_candidates.sort(key=lambda k: k['score'], reverse=True)
