@@ -279,16 +279,16 @@ def main():
         optimizer,
         mode='max',
         factor=0.5,   # cut it by half
-        patience=3,   # wait for 3 epochs
+        patience=8,   # wait for 3 epochs
     )
 
     # --- 3. RESUME LOGIC ---
     start_epoch = 0
     best_score = 0.0
     # Early stopping logic
-    early_stopping_patience = 5
+    early_stopping_patience = 15
     early_stopping_counter = 0
-    early_stopping_delta = 0.001
+    early_stopping_delta = 0.0001
 
     if args.resume:
         if os.path.isfile(args.resume):
@@ -297,17 +297,17 @@ def main():
 
             # Load states
             model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            # check if checkpoint has then load not then restart
-            if 'scheduler_state_dict' in checkpoint:
-                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            else:
-                print("⚠️ No scheduler state found. Scheduler will restart.")
+            # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            # # check if checkpoint has then load not then restart
+            # if 'scheduler_state_dict' in checkpoint:
+            #     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            # else:
+            #     print("⚠️ No scheduler state found. Scheduler will restart.")
 
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
             best_score = checkpoint.get('best_score', 0.0)
-            early_stopping_counter = checkpoint.get('early_stopping_counter', 0)
+            early_stopping_counter = 0
             print(f"✅ Loaded checkpoint (Epoch {start_epoch}, Best mIoU: {best_score:.4f})")
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")

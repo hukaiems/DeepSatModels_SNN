@@ -101,6 +101,18 @@ class FranceDataset:
 
         x = torch.stack(processed_bands, dim=1) # x.shape is (T, C, H, W)
 
+        # Cloud cover handling
+
+        cloud_threshold = 3000.0
+
+        cloud_mask = (x[:, 1, :, :] > cloud_threshold) & \
+                     (x[:, 2, :, :] > cloud_threshold) & \
+                     (x[:, 3, :, :] > cloud_threshold)
+        
+        cloud_mask = cloud_mask.unsqueeze(1).expand_as(x)
+
+        x[cloud_mask] = 0.0
+
         # -----------------------------------------------------------
         # PART B: NORMALIZE
         # -----------------------------------------------------------
