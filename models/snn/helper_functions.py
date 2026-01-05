@@ -711,7 +711,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
                             'labels': batch['labels'][b].unsqueeze(0)
                         }
                     })
-            if len(cloud_candidates) > 20: break 
+            if len(cloud_candidates) > 1000: break 
 
     # Sort
     cloud_candidates.sort(key=lambda k: k['score'], reverse=True)
