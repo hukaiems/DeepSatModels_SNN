@@ -11,6 +11,7 @@ import os
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 from spike_data.pastis_dataset import PASTIS_CLASSES
+from spike_data.france_dataset import FRANCE_CLASSES
 import random
 
 def get_norm_layer_2d(norm_type, channels):
@@ -402,27 +403,29 @@ def plot_phenological_confusion(
 # Visualizing 3 pictures, Ground truth, prediction and Error.
 # -----------------
 PASTIS_PALETTE = {
-    0:  (0.0, 0.0, 0.0),       # Background -> Black
-    1:  (1.0, 0.84, 0.0),      # Corn -> Gold
-    2:  (0.87, 0.72, 0.53),    # Wheat -> Wheat color
-    3:  (0.2, 0.8, 0.2),       # Winter Barley -> Green
-    4:  (0.55, 0.27, 0.07),    # Rapeseed -> SaddleBrown
-    5:  (1.0, 0.0, 1.0),       # Sunflower -> Magenta
-    6:  (0.5, 0.0, 0.5),       # Sugar Beet -> Purple
-    7:  (0.0, 0.0, 1.0),       # Meadow -> Blue
-    8:  (0.0, 0.5, 0.5),       # Forest -> Teal
-    9:  (0.5, 0.5, 0.5),       # Potato -> Gray
-    10: (0.6, 0.4, 0.2),       # Soya -> Brown
-    11: (1.0, 0.5, 0.0),       # Fodder -> Orange
-    12: (0.8, 0.8, 0.0),       # Triticale -> Olive
-    13: (0.8, 0.0, 0.0),       # Durum Wheat -> Dark Red
-    14: (0.0, 1.0, 0.0),       # Fruits/Veg -> Lime
-    15: (0.4, 0.2, 0.6),       # Vegetables -> Violet
-    16: (0.9, 0.6, 0.6),       # Legumes -> Pink
-    17: (0.3, 0.3, 0.0),       # Soybeans -> Dark Olive
-    18: (0.0, 0.0, 0.5),       # Sorghum -> Navy
-    19: (1.0, 1.0, 1.0),       # Void -> White
+    0:  (0.0, 0.0, 0.0),
+    1:  (1.0, 0.84, 0.0),  
+    2:  (0.87, 0.72, 0.53),
+    3:  (0.2, 0.8, 0.2),
+    4:  (0.55, 0.27, 0.07),
+    5:  (1.0, 0.0, 1.0),
+    6:  (0.5, 0.0, 0.5),
+    7:  (0.0, 0.0, 1.0),
+    8:  (0.0, 0.5, 0.5),
+    9:  (0.5, 0.5, 0.5),
+    10: (0.6, 0.4, 0.2),
+    11: (1.0, 0.5, 0.0),
+    12: (0.8, 0.8, 0.0),
+    13: (0.8, 0.0, 0.0),
+    14: (0.0, 1.0, 0.0),
+    15: (0.4, 0.2, 0.6),
+    16: (0.9, 0.6, 0.6),
+    17: (0.3, 0.3, 0.0),
+    18: (0.0, 0.0, 0.5),
+    19: (1.0, 1.0, 1.0),
 }
+
+
 
 # --- 1. Fix the Color Map Creator ---
 
@@ -629,19 +632,58 @@ def analyze_temporal_importance(model, loader, device, save_dir="output", target
 
 
 
-def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="output/cloud_analysis"):
+from matplotlib.patches import Patch
+
+def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="output/cloud_analysis", datasets='pastis'):
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
     
-    # Custom Palette
-    france_colors = [
-        'black', 'green', 'gold', 'yellow', 'brown', 'orange', 
-        'lime', 'cyan', 'purple', 'pink', 'olive', 'teal', 
-        'red', 'blue', 'magenta', 'gray', 'lightgreen', 'darkblue', 
-        'salmon', 'indigo', 'white'
-    ]
-    cmap = mcolors.ListedColormap(france_colors)
+    # --- 1. SETUP PALETTES & CLASS NAMES ---
+    if datasets == 'pastis':
+        # PASTIS Setup
+        PALETTE = {
+            0:  (0.0, 0.0, 0.0), 1:  (1.0, 0.84, 0.0), 2:  (0.87, 0.72, 0.53), 3:  (0.2, 0.8, 0.2),
+            4:  (0.55, 0.27, 0.07), 5:  (1.0, 0.0, 1.0), 6:  (0.5, 0.0, 0.5), 7:  (0.0, 0.0, 1.0),
+            8:  (0.0, 0.5, 0.5), 9:  (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
+            12: (0.8, 0.8, 0.0), 13: (0.8, 0.0, 0.0), 14: (0.0, 1.0, 0.0), 15: (0.4, 0.2, 0.6),
+            16: (0.9, 0.6, 0.6), 17: (0.3, 0.3, 0.0), 18: (0.0, 0.0, 0.5), 19: (1.0, 1.0, 1.0),
+        }
+        try:
+            class_list = PASTIS_CLASSES
+        except ImportError:
+            class_list = [f"{i}: Class {i}" for i in range(20)]
+            
+        num_classes = 20
+        void_idx = 19
+        colors_list = [PALETTE[i] for i in range(20)]
+
+    else:
+        # FRANCE Setup (Custom Palette)
+        PALETTE = {
+            0:  (0.0, 0.0, 0.0), 1:  (1.0, 0.84, 0.0), 2:  (0.87, 0.72, 0.53), 3:  (0.2, 0.8, 0.2),
+            4:  (0.55, 0.27, 0.07), 5:  (1.0, 0.0, 1.0), 6:  (0.5, 0.0, 0.5), 7:  (0.0, 0.0, 1.0),
+            8:  (0.0, 0.5, 0.5), 9:  (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
+            12: (0.8, 0.8, 0.0), 13: (0.8, 0.0, 0.0), 14: (0.0, 1.0, 0.0), 15: (0.4, 0.2, 0.6),
+            16: (0.9, 0.6, 0.6), 17: (0.3, 0.3, 0.0), 18: (0.0, 0.0, 0.5), 19:(0.5, 0.7, 0.2), 20: (1.0, 1.0, 1.0),
+        }
+        try:
+            class_list = FRANCE_CLASSES
+        except ImportError:
+            class_list = [f"{i}: Class {i}" for i in range(21)]
+
+        num_classes = 21
+        void_idx = 20
+        colors_list = [PALETTE[i] for i in range(21)]
+
+    cmap = mcolors.ListedColormap(colors_list)
     
+    # Helper to clean class names (remove "1: " prefix)
+    idx_to_name = {}
+    for i, name in enumerate(class_list):
+        clean_name = name.split(':')[-1].strip() if ':' in name else name
+        idx_to_name[i] = clean_name
+    
+    # --- 2. SCANNING LOGIC ---
     print("⚡ Scanning for cloudy samples (Max Intensity Method)...")
     cloud_candidates = []
 
@@ -649,20 +691,16 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
         for i, batch in enumerate(tqdm(loader, desc="Scanning")):
             x = batch['sequence'] # [B, T, C, H, W]
             
-            # --- FIX: DETECT BRIGHTEST TIME STEP ---
-            # 1. Select RGB channels (1, 2, 3)
-            # 2. Mean over Channels (dim 2) -> [B, T, H, W]
-            # 3. MAX over Time (dim 1) -> [B, H, W] (Finds the brightest day for each pixel)
-            
+            # Detect brightest time step
             rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) 
             max_brightness_per_pixel, _ = rgb_mean.max(dim=1) 
             
-            # Check how much of the image is "Bright" (> 2.0 std devs is safe for thick clouds)
-            cloud_score = (max_brightness_per_pixel > 2.0).float().mean(dim=(1,2)) # [B]
+            # Threshold > 2.0
+            cloud_score = (max_brightness_per_pixel > 2.0).float().mean(dim=(1,2)) 
             
             for b in range(x.shape[0]):
                 score = cloud_score[b].item()
-                if score > 0.10: # If >10% of the image is bright on its brightest day
+                if score > 0.10: 
                     cloud_candidates.append({
                         'score': score,
                         'batch_idx': i,
@@ -673,15 +711,15 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
                             'labels': batch['labels'][b].unsqueeze(0)
                         }
                     })
-            
             if len(cloud_candidates) > 20: break 
 
-    # Sort and Plot
+    # Sort
     cloud_candidates.sort(key=lambda k: k['score'], reverse=True)
     top_clouds = cloud_candidates[:num_samples]
     
     print(f"📸 Found {len(top_clouds)} cloudy samples. Generating plots...")
 
+    # --- 3. PLOTTING LOOP ---
     for idx, item in enumerate(top_clouds):
         x = item['data']['sequence'].to(device)
         dates = item['data']['dates'].to(device)
@@ -690,43 +728,63 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
         logits = model(x, dates)
         y_pred = torch.argmax(logits, dim=1)
         
-        # --- PREPARE IMAGE DISPLAY ---
-        # We want to show the SPECIFIC TIME STEP that triggered the cloud detection
-        # Re-calculate max to find the index
-        rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) # [1, T, H, W]
-        spatial_mean = rgb_mean.mean(dim=(2,3))    # [1, T]
+        # Find Cloudiest Day
+        rgb_mean = x[:, :, 1:4, :, :].mean(dim=2)
+        spatial_mean = rgb_mean.mean(dim=(2,3))
         cloudiest_t = torch.argmax(spatial_mean, dim=1).item()
         
-        # Extract that specific day for plotting
-        rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] # Red, Green, Blue
+        # Extract Image
+        rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] # RGB
         img_display = rgb_tensor.permute(1, 2, 0).cpu().numpy()
-        
-        # Clip/Normalize
         p2, p98 = np.percentile(img_display, (2, 98))
         img_display = np.clip((img_display - p2) / (p98 - p2), 0, 1)
 
         y_true_np = y_true[0].cpu().numpy()
         y_pred_np = y_pred[0].cpu().numpy()
         
-        # Plotting (Same as before)
+        # Plot
         fig, axes = plt.subplots(1, 4, figsize=(24, 6))
         
+        # 1. Input
         axes[0].imshow(img_display)
-        axes[0].set_title(f'T31TFM Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
+        if datasets == 'pastis':
+             axes[0].set_title(f'PASTIS Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
+        else:
+             axes[0].set_title(f'T31TFM Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
         axes[0].axis('off')
         
-        axes[1].imshow(y_true_np, cmap=cmap, vmin=0, vmax=20, interpolation='nearest')
+        # 2. GT
+        axes[1].imshow(y_true_np, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
         axes[1].set_title('Ground Truth', fontsize=14)
         axes[1].axis('off')
         
-        axes[2].imshow(y_pred_np, cmap=cmap, vmin=0, vmax=20, interpolation='nearest')
+        # 3. Pred
+        axes[2].imshow(y_pred_np, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
         axes[2].set_title('S-TSViT Prediction', fontsize=14)
         axes[2].axis('off')
         
+        # 4. Error
         err_mask = (y_pred_np != y_true_np)
         axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest')
         axes[3].set_title('Error Map', fontsize=14)
         axes[3].axis('off')
+
+        # --- 4. ADD LEGEND ---
+        unique_classes = np.unique(np.concatenate((y_true_np, y_pred_np)))
+        patches = []
+
+        for c in unique_classes:
+            if c == void_idx: continue # Skip void/cloud class in legend
+            
+            color = PALETTE.get(c, (0,0,0))
+            name = idx_to_name.get(c, f"Class {c}")
+            patches.append(Patch(color=color, label=f'{c}: {name}'))
+        
+        if patches:
+            # Position legend outside the plot
+            fig.legend(handles=patches, loc='center left', bbox_to_anchor=(0.9, 0.5), title="Classes", fontsize=12)
+
+        plt.subplots_adjust(right=0.85) # Squeeze plot to make room for legend
         
         save_path = f"{save_dir}/cloud_fail_{idx}.png"
         plt.savefig(save_path, bbox_inches='tight')

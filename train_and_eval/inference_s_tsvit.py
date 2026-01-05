@@ -187,7 +187,7 @@ def main():
     # Plot cloud analysis
     # ---------------------------------------------------------
     if args.analyze_cloud:
-        visualize_cloud_sensitivity(model, val_loader, device)
+        visualize_cloud_sensitivity(model, val_loader, device, datasets=args.datasets)
 
     # ---------------------------------------------------------
     # Plot temporal importance for a specific class
