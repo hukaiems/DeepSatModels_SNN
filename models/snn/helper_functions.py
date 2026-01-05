@@ -634,125 +634,105 @@ def analyze_temporal_importance(model, loader, device, save_dir="output", target
 
 from matplotlib.patches import Patch
 
-def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="output/cloud_analysis", datasets='pastis'):
+def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="output/cloud_analysis", datasets='pastis'):
+    """
+    Hunts for the samples with the Highest Error Rate (Worst Failures).
+    """
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
     
     # --- 1. SETUP PALETTES & CLASS NAMES ---
     if datasets == 'pastis':
-        # PASTIS Setup
         PALETTE = {
-            0:  (0.0, 0.0, 0.0), 1:  (1.0, 0.84, 0.0), 2:  (0.87, 0.72, 0.53), 3:  (0.2, 0.8, 0.2),
-            4:  (0.55, 0.27, 0.07), 5:  (1.0, 0.0, 1.0), 6:  (0.5, 0.0, 0.5), 7:  (0.0, 0.0, 1.0),
-            8:  (0.0, 0.5, 0.5), 9:  (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
+            0: (0,0,0), 1: (1.0, 0.84, 0.0), 2: (0.87, 0.72, 0.53), 3: (0.2, 0.8, 0.2),
+            4: (0.55, 0.27, 0.07), 5: (1.0, 0.0, 1.0), 6: (0.5, 0.0, 0.5), 7: (0.0, 0.0, 1.0),
+            8: (0.0, 0.5, 0.5), 9: (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
             12: (0.8, 0.8, 0.0), 13: (0.8, 0.0, 0.0), 14: (0.0, 1.0, 0.0), 15: (0.4, 0.2, 0.6),
             16: (0.9, 0.6, 0.6), 17: (0.3, 0.3, 0.0), 18: (0.0, 0.0, 0.5), 19: (1.0, 1.0, 1.0),
         }
-        try:
-            class_list = PASTIS_CLASSES
-        except ImportError:
-            class_list = [f"{i}: Class {i}" for i in range(20)]
-            
-        num_classes = 20
-        void_idx = 19
-        colors_list = [PALETTE[i] for i in range(20)]
+        try: from spike_data.pastis_dataset import PASTIS_CLASSES as class_list
+        except: class_list = [f"{i}: Class {i}" for i in range(20)]
+        num_classes, void_idx = 20, 19
 
-    else:
-        # FRANCE Setup (Custom Palette)
+    else: # FRANCE
         PALETTE = {
-            0:  (0.0, 0.0, 0.0), 1:  (1.0, 0.84, 0.0), 2:  (0.87, 0.72, 0.53), 3:  (0.2, 0.8, 0.2),
-            4:  (0.55, 0.27, 0.07), 5:  (1.0, 0.0, 1.0), 6:  (0.5, 0.0, 0.5), 7:  (0.0, 0.0, 1.0),
-            8:  (0.0, 0.5, 0.5), 9:  (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
-            12: (0.8, 0.8, 0.0), 13: (0.8, 0.0, 0.0), 14: (0.0, 1.0, 0.0), 15: (0.4, 0.2, 0.6),
-            16: (0.9, 0.6, 0.6), 17: (0.3, 0.3, 0.0), 18: (0.0, 0.0, 0.5), 19:(0.5, 0.7, 0.2), 20: (1.0, 1.0, 1.0),
+            0: (0,0,0), 1: (0,1,0), 2: (1, 0.84, 0), 3: (1,1,0), 4: (0.6, 0.4, 0.2),
+            5: (0.5, 0, 0.5), 6: (0.8, 0.6, 0.4), 7: (1, 0.5, 0), 8: (0.5, 0, 0),
+            9: (0.8, 0, 0), 10: (0.6, 0.6, 0.2), 11: (0.7, 0.5, 0.3), 12: (1, 0, 1),
+            13: (0.6, 0.6, 0.6), 14: (0, 0.5, 0), 15: (0, 0, 0.5), 16: (0, 0.5, 0.5),
+            17: (0.8, 0.8, 0), 18: (0.4, 0.2, 0), 19: (0.5, 0.5, 0.5), 20: (1,1,1)
         }
-        try:
-            class_list = FRANCE_CLASSES
-        except ImportError:
-            class_list = [f"{i}: Class {i}" for i in range(21)]
+        try: from spike_data.france_dataset import FRANCE_CLASSES as class_list
+        except: class_list = [f"{i}: Class {i}" for i in range(21)]
+        num_classes, void_idx = 21, 20
 
-        num_classes = 21
-        void_idx = 20
-        colors_list = [PALETTE[i] for i in range(21)]
-
+    colors_list = [PALETTE[i] for i in range(num_classes)]
     cmap = mcolors.ListedColormap(colors_list)
     
-    # Helper to clean class names (remove "1: " prefix)
-    idx_to_name = {}
-    for i, name in enumerate(class_list):
-        clean_name = name.split(':')[-1].strip() if ':' in name else name
-        idx_to_name[i] = clean_name
+    idx_to_name = {i: name.split(':')[-1].strip() if ':' in name else name for i, name in enumerate(class_list)}
     
-    # --- 2. SCANNING LOGIC ---
-    print("⚡ Scanning for cloudy samples (Max Intensity Method)...")
-    cloud_candidates = []
+    # --- 2. SCANNING LOGIC (Hunt for Errors) ---
+    print(f"⚡ Scanning for Worst Failures (High Error Rate) in {datasets}...")
+    failure_candidates = []
 
     with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc="Scanning for Hidden Haze")):
-            x = batch['sequence'] # [B, T, C, H, W]
-            y = batch['labels']   # [B, H, W]
+        for i, batch in enumerate(tqdm(loader, desc="Scanning")):
+            x = batch['sequence'].to(device)
+            dates = batch['dates'].to(device)
+            y = batch['labels'].to(device)
             
-            # 1. Find the Brightest Day per pixel (Spatial Intensity)
-            rgb_mean = x[:, :, 1:4, :, :].mean(dim=2) 
-            max_brightness_per_pixel, _ = rgb_mean.max(dim=1) # [B, H, W]
+            logits = model(x, dates)
+            preds = torch.argmax(logits, dim=1) 
             
-            # 2. Define "Valid" Pixels (Not Void)
-            # We want to find pixels that are BRIGHT but marked as VALID CROPS
-            is_valid_crop = (y != void_idx) 
+            # --- CALCULATE ERROR SCORE ---
+            valid_mask = (y != void_idx)
+            errors = (preds != y) & valid_mask
             
-            # 3. Calculate "Unfairness Score"
-            # We look for pixels that are Bright (> 1.5 std) AND Valid
-            # Note: We lower threshold to 1.5 to catch "Haze" not just "Thick Cloud"
-            haze_mask = (max_brightness_per_pixel > 1.5) & is_valid_crop
+            wrong_counts = errors.float().sum(dim=(1,2))
+            valid_counts = valid_mask.float().sum(dim=(1,2))
             
-            # Score = How much of the VALID crop area is covered in Haze?
-            # We sum the haze pixels and divide by total valid pixels (avoid divide by 0)
-            valid_pixel_count = is_valid_crop.sum(dim=(1,2)).float()
-            hazy_pixel_count = haze_mask.float().sum(dim=(1,2))
-            
-            haze_score = hazy_pixel_count / (valid_pixel_count + 1e-6)
+            error_rates = wrong_counts / (valid_counts + 1e-6)
             
             for b in range(x.shape[0]):
-                score = haze_score[b].item()
+                score = error_rates[b].item()
+                valid_pixels = valid_counts[b].item()
                 
-                # Only keep if there is substantial valid crop content (>100 pixels)
-                # and substantial haze (>10% of crop is hazy)
-                if score > 0.10 and valid_pixel_count[b] > 100: 
-                    cloud_candidates.append({
+                if valid_pixels > 50 and score > 0.2: 
+                    failure_candidates.append({
                         'score': score,
                         'batch_idx': i,
                         'in_batch_idx': b,
                         'data': {
-                            'sequence': x[b].unsqueeze(0),
-                            'dates': batch['dates'][b].unsqueeze(0),
-                            'labels': batch['labels'][b].unsqueeze(0)
+                            'sequence': x[b].cpu().unsqueeze(0),
+                            'dates': dates[b].cpu().unsqueeze(0),
+                            'labels': y[b].cpu().unsqueeze(0),
+                            'pred': preds[b].cpu().unsqueeze(0) # Re-use prediction!
                         }
                     })
             
-            if len(cloud_candidates) > 50: break
+            if len(failure_candidates) > 100:
+                failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+                failure_candidates = failure_candidates[:50]
 
-    # Sort
-    cloud_candidates.sort(key=lambda k: k['score'], reverse=True)
-    top_clouds = cloud_candidates[:num_samples]
+    failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+    top_failures = failure_candidates[:num_samples]
     
-    print(f"📸 Found {len(top_clouds)} cloudy samples. Generating plots...")
+    print(f"📉 Found {len(top_failures)} catastrophic failures. Plotting...")
 
     # --- 3. PLOTTING LOOP ---
-    for idx, item in enumerate(top_clouds):
+    for idx, item in enumerate(top_failures):
         x = item['data']['sequence'].to(device)
-        dates = item['data']['dates'].to(device)
         y_true = item['data']['labels'].to(device)
+        y_pred = item['data']['pred'].to(device) # Use saved prediction
+        score = item['score']
         
-        logits = model(x, dates)
-        y_pred = torch.argmax(logits, dim=1)
-        
-        # Find Cloudiest Day
+        # Find Brightest Day
         rgb_mean = x[:, :, 1:4, :, :].mean(dim=2)
         spatial_mean = rgb_mean.mean(dim=(2,3))
         cloudiest_t = torch.argmax(spatial_mean, dim=1).item()
         
         # Extract Image
-        rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] # RGB
+        rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] 
         img_display = rgb_tensor.permute(1, 2, 0).cpu().numpy()
         p2, p98 = np.percentile(img_display, (2, 98))
         img_display = np.clip((img_display - p2) / (p98 - p2), 0, 1)
@@ -765,10 +745,8 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
         
         # 1. Input
         axes[0].imshow(img_display)
-        if datasets == 'pastis':
-             axes[0].set_title(f'PASTIS Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
-        else:
-             axes[0].set_title(f'T31TFM Input (Day {cloudiest_t})\nSevere Cloud', fontsize=14, color='red')
+        # --- FIXED TITLE HERE ---
+        axes[0].set_title(f'{datasets.upper()} Input (Day {cloudiest_t})\nError Rate: {score*100:.1f}%', fontsize=14, color='darkred')
         axes[0].axis('off')
         
         # 2. GT
@@ -781,33 +759,30 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
         axes[2].set_title('S-TSViT Prediction', fontsize=14)
         axes[2].axis('off')
         
-        # 4. Error
+        # 4. Error Map
         err_mask = (y_pred_np != y_true_np).astype(float)
-
         is_void = (y_true_np == void_idx)
-        err_mask[is_void] = 0.0
-        axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest')
+        err_mask[is_void] = 0.0 
+        
+        axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest', vmin=0, vmax=1)
         axes[3].set_title('Error Map', fontsize=14)
         axes[3].axis('off')
 
-        # --- 4. ADD LEGEND ---
+        # Legend
         unique_classes = np.unique(np.concatenate((y_true_np, y_pred_np)))
         patches = []
-
         for c in unique_classes:
-            if c == void_idx: continue # Skip void/cloud class in legend
-            
+            if c == void_idx: continue 
             color = PALETTE.get(c, (0,0,0))
             name = idx_to_name.get(c, f"Class {c}")
             patches.append(Patch(color=color, label=f'{c}: {name}'))
         
         if patches:
-            # Position legend outside the plot
             fig.legend(handles=patches, loc='center left', bbox_to_anchor=(0.9, 0.5), title="Classes", fontsize=12)
 
-        plt.subplots_adjust(right=0.85) # Squeeze plot to make room for legend
+        plt.subplots_adjust(right=0.85)
         
-        save_path = f"{save_dir}/cloud_fail_{idx}.png"
+        save_path = f"{save_dir}/failure_rank_{idx+1}.png"
         plt.savefig(save_path, bbox_inches='tight')
         print(f"✅ Saved plot: {save_path}")
         plt.close()
