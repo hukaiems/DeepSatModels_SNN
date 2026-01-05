@@ -99,7 +99,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device, accum_steps
         y = batch['labels'].to(device)
 
         # Amp utilized
-        with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+        with torch.autocast(device_type='cuda', dtype=torch.float16):
             # clear->logit->computeLoss->backprobagation->learn->resetLIF
             logits = model(x, dates)
             loss = criterion(logits, y) # var to store loss history, cal grad to adjust weight
