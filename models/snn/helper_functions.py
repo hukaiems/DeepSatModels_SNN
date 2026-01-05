@@ -764,7 +764,10 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=3, save_dir="
         axes[2].axis('off')
         
         # 4. Error
-        err_mask = (y_pred_np != y_true_np)
+        err_mask = (y_pred_np != y_true_np).astype(float)
+
+        is_void = (y_true_np == void_idx)
+        err_mask[is_void] = 0.0
         axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest')
         axes[3].set_title('Error Map', fontsize=14)
         axes[3].axis('off')
