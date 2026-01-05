@@ -27,7 +27,7 @@ from spike_data.pastis_dataset import PastisDataset, PASTIS_CLASSES
 from spike_data.france_dataset import FranceDataset, FRANCE_CLASSES
 from models.snn.spike_tsvit import SpikeTSViTMean, SpikeTSViTNoMean
 from spikingjelly.clock_driven.functional import reset_net
-from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison, analyze_temporal_importance
+from models.snn.helper_functions import measure_energy_efficiency_full, check_class_imbalance, compute_and_plot_cm, plot_phenological_confusion, plot_segmentation_comparison, analyze_temporal_importance, visualize_cloud_sensitivity
 
 # --- ARGUMENT PARSER ---
 def get_args():
@@ -80,6 +80,8 @@ def get_args():
                         help="Plotting out which time step is the most importance for the accuracy of each class.")
     parser.add_argument('--temporal_importance_class', type=int, default=9,
                         help="This is the class number you want to plot the temporal importance experiment.")
+    parser.add_argument('--analyze_cloud', action='store_true',
+                        help=" Analyzing the cloud cover picture and plot out the prediction")
 
     return parser.parse_args()
 
@@ -181,6 +183,11 @@ def main():
 
     # CRITICAL: Freeze model for testing
     model.eval()
+    # ---------------------------------------------------------
+    # Plot cloud analysis
+    # ---------------------------------------------------------
+    if args.analyze_cloud:
+        visualize_cloud_sensitivity(model, val_loader, device)
 
     # ---------------------------------------------------------
     # Plot temporal importance for a specific class
