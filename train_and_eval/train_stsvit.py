@@ -297,12 +297,12 @@ def main():
 
             # Load states
             model.load_state_dict(checkpoint['model_state_dict'])
-            # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             # # check if checkpoint has then load not then restart
-            # if 'scheduler_state_dict' in checkpoint:
-            #     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            # else:
-            #     print("⚠️ No scheduler state found. Scheduler will restart.")
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            else:
+                print("⚠️ No scheduler state found. Scheduler will restart.")
 
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
