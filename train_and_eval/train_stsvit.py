@@ -298,7 +298,7 @@ def main():
             # Load states
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            # # check if checkpoint has then load not then restart
+            # check if checkpoint has then load not then restart
             if 'scheduler_state_dict' in checkpoint:
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             else:
@@ -307,7 +307,7 @@ def main():
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
             best_score = checkpoint.get('best_score', 0.0)
-            early_stopping_counter = 0
+            early_stopping_counter = checkpoint.get('early_stopping_counter', 0)
             print(f"✅ Loaded checkpoint (Epoch {start_epoch}, Best mIoU: {best_score:.4f})")
         else:
             print(f"⚠️ Checkpoint path '{args.resume}' not found! Starting from scratch.")
