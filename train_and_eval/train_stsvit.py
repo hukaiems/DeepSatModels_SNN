@@ -304,6 +304,12 @@ def main():
             else:
                 print("⚠️ No scheduler state found. Scheduler will restart.")
 
+            # load scaler
+            if "scaler_state_dict" in checkpoint:
+                scaler.load_state_dict(checkpoint['scaler_state_dict'])
+            else:
+                print("⚠️ No scaler state found. GradScaler will restart.")
+
             # load epoch and score
             start_epoch = checkpoint['epoch'] + 1
             best_score = checkpoint.get('best_score', 0.0)
@@ -343,6 +349,7 @@ def main():
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
             'best_score': best_score,
             'early_stopping_counter': early_stopping_counter,
         }
