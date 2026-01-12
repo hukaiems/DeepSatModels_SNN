@@ -637,8 +637,8 @@ from matplotlib.patches import Patch
 def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="output/cloud_analysis", datasets='pastis', mode='scan', save_file="worst_failures.pt"):
     """
     Args:
-        mode: 'scan' (Hunt for new failures & save them) OR 'compare' (Load saved failures & show improvement)
-        save_file: The .pt file to save to (in scan mode) or load from (in compare mode).
+        mode: 'scan' (Hunt for failures OR Load existing failures to view them)
+        save_file: The .pt file to save to or load from.
     """
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
@@ -647,7 +647,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
     if datasets == 'pastis':
         try: from spike_data.pastis_dataset import PASTIS_CLASSES as class_list
         except: class_list = [f"{i}" for i in range(20)]
-        PALETTE = {0:(0,0,0), 1:(1.0, 0.84, 0.0), 2:(0.87, 0.72, 0.53), 3:(0.2, 0.8, 0.2), 4:(0.55, 0.27, 0.07), 19:(1,1,1)} # Add rest...
+        PALETTE = {0:(0,0,0), 1:(1.0, 0.84, 0.0), 2:(0.87, 0.72, 0.53), 3:(0.2, 0.8, 0.2), 4:(0.55, 0.27, 0.07), 19:(1,1,1)} 
         num_classes, void_idx = 20, 19
     else: # FRANCE
         PALETTE = {
@@ -666,53 +666,58 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
     cmap = mcolors.ListedColormap(colors_list)
     
     # ==========================================
-    # MODE 1: SCANNING (Hunt & Save)
+    # MODE 1: SCANNING (Hunt OR Load)
     # ==========================================
     if mode == 'scan':
-        print(f"⚡ Scanning for Worst Failures in {datasets}...")
-        failure_candidates = []
+        # --- NEW LOGIC: Check if file exists first ---
+        if os.path.exists(save_file):
+            print(f"📂 Found existing failures at {save_file}. Loading directly (Skipping Scan)...")
+            top_failures = torch.load(save_file)
+        else:
+            print(f"⚡ File {save_file} not found. Scanning for Worst Failures in {datasets}...")
+            failure_candidates = []
 
-        with torch.no_grad():
-            for i, batch in enumerate(tqdm(loader, desc="Scanning")):
-                x = batch['sequence'].to(device)
-                dates = batch['dates'].to(device)
-                y = batch['labels'].to(device)
-                
-                logits = model(x, dates)
-                preds = torch.argmax(logits, dim=1) 
-                
-                # Calc Error
-                valid_mask = (y != void_idx)
-                errors = (preds != y) & valid_mask
-                wrong_counts = errors.float().sum(dim=(1,2))
-                valid_counts = valid_mask.float().sum(dim=(1,2))
-                error_rates = wrong_counts / (valid_counts + 1e-6)
-                
-                for b in range(x.shape[0]):
-                    score = error_rates[b].item()
-                    valid_pixels = valid_counts[b].item()
+            with torch.no_grad():
+                for i, batch in enumerate(tqdm(loader, desc="Scanning")):
+                    x = batch['sequence'].to(device)
+                    dates = batch['dates'].to(device)
+                    y = batch['labels'].to(device)
                     
-                    if valid_pixels > 50 and score > 0.3: # Threshold
-                        failure_candidates.append({
-                            'score': score,
-                            'sequence': x[b].cpu(), # Save to CPU
-                            'dates': dates[b].cpu(),
-                            'labels': y[b].cpu(),
-                            'pred_old': preds[b].cpu() 
-                        })
-                
-                if len(failure_candidates) > 100:
-                    failure_candidates.sort(key=lambda k: k['score'], reverse=True)
-                    failure_candidates = failure_candidates[:50]
+                    logits = model(x, dates)
+                    preds = torch.argmax(logits, dim=1) 
+                    
+                    # Calc Error
+                    valid_mask = (y != void_idx)
+                    errors = (preds != y) & valid_mask
+                    wrong_counts = errors.float().sum(dim=(1,2))
+                    valid_counts = valid_mask.float().sum(dim=(1,2))
+                    error_rates = wrong_counts / (valid_counts + 1e-6)
+                    
+                    for b in range(x.shape[0]):
+                        score = error_rates[b].item()
+                        valid_pixels = valid_counts[b].item()
+                        
+                        if valid_pixels > 50 and score > 0.3: # Threshold
+                            failure_candidates.append({
+                                'score': score,
+                                'sequence': x[b].cpu(), # Save to CPU
+                                'dates': dates[b].cpu(),
+                                'labels': y[b].cpu(),
+                                'pred_old': preds[b].cpu() 
+                            })
+                    
+                    if len(failure_candidates) > 100:
+                        failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+                        failure_candidates = failure_candidates[:50]
 
-        failure_candidates.sort(key=lambda k: k['score'], reverse=True)
-        top_failures = failure_candidates[:num_samples]
+            failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+            top_failures = failure_candidates[:num_samples]
 
-        # SAVE TO FILE
-        torch.save(top_failures, save_file)
-        print(f"💾 Saved {len(top_failures)} worst failures to {save_file}")
+            # SAVE TO FILE
+            torch.save(top_failures, save_file)
+            print(f"💾 Saved {len(top_failures)} worst failures to {save_file}")
         
-        # Prepare for plotting loop (Standard 4-plot: In, GT, Pred, Error)
+        # Prepare for plotting
         plot_items = top_failures
         is_comparison = False
 
@@ -721,7 +726,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
     # ==========================================
     elif mode == 'compare':
         if not os.path.exists(save_file):
-            print(f"❌ File {save_file} not found. Run with mode='scan' first!")
+            print(f"❌ File {save_file} not found. Run with mode='scan' first (delete file to force rescan)!")
             return
 
         print(f"⚡ Loading failures from {save_file}...")
