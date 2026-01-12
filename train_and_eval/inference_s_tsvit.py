@@ -82,6 +82,8 @@ def get_args():
                         help="This is the class number you want to plot the temporal importance experiment.")
     parser.add_argument('--analyze_cloud', type=str, default=None, choices=['scan', 'compare'],
                         help=" Analyzing the cloud cover picture and plot out the prediction")
+    parser.add_argument('--cloud_file', type=str, default='/kaggle/working/france_failures.pt',
+                        help="Path to the .pt file for saving/loading cloud failures")
 
     return parser.parse_args()
 
@@ -191,7 +193,7 @@ def main():
         model, val_loader, device, 
         datasets='france', 
         mode=args.analyze_cloud,               # <--- This saves the file
-        save_file='france_failures.pt'
+        save_file=args.cloud_file
     )
 
     # ---------------------------------------------------------
