@@ -637,13 +637,13 @@ from matplotlib.patches import Patch
 def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="output/cloud_analysis", datasets='pastis', mode='scan', save_file="worst_failures.pt"):
     """
     Args:
-        mode: 'scan' (Hunt for failures OR Load existing failures to view them)
+        mode: 'scan' (Hunt for failures OR Load existing failures & Re-evaluate them)
         save_file: The .pt file to save to or load from.
     """
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
     
-    # --- 1. SETUP PALETTES (Shared Logic) ---
+    # --- 1. SETUP PALETTES ---
     if datasets == 'pastis':
         try: from spike_data.pastis_dataset import PASTIS_CLASSES as class_list
         except: class_list = [f"{i}" for i in range(20)]
@@ -666,13 +666,31 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
     cmap = mcolors.ListedColormap(colors_list)
     
     # ==========================================
-    # MODE 1: SCANNING (Hunt OR Load)
+    # MODE 1: SCANNING (Hunt OR Load & Re-Run)
     # ==========================================
     if mode == 'scan':
-        # --- NEW LOGIC: Check if file exists first ---
         if os.path.exists(save_file):
-            print(f"📂 Found existing failures at {save_file}. Loading directly (Skipping Scan)...")
-            top_failures = torch.load(save_file)
+            print(f"📂 Found existing failures at {save_file}.")
+            print(f"🔄 Re-running CURRENT MODEL on these saved images to generate new Error Maps...")
+            
+            saved_data = torch.load(save_file)
+            top_failures = []
+            
+            # --- CRITICAL FIX: Run Inference on Saved Images ---
+            with torch.no_grad():
+                for item in saved_data:
+                    # Move saved tensors to device
+                    x = item['sequence'].unsqueeze(0).to(device)
+                    dates = item['dates'].unsqueeze(0).to(device)
+                    
+                    # Run Current Model
+                    logits = model(x, dates)
+                    new_preds = torch.argmax(logits, dim=1).cpu()[0] # Back to CPU
+                    
+                    # Update the item with NEW prediction
+                    item['pred_old'] = new_preds 
+                    top_failures.append(item)
+            
         else:
             print(f"⚡ File {save_file} not found. Scanning for Worst Failures in {datasets}...")
             failure_candidates = []
@@ -686,7 +704,6 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
                     logits = model(x, dates)
                     preds = torch.argmax(logits, dim=1) 
                     
-                    # Calc Error
                     valid_mask = (y != void_idx)
                     errors = (preds != y) & valid_mask
                     wrong_counts = errors.float().sum(dim=(1,2))
@@ -697,10 +714,10 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
                         score = error_rates[b].item()
                         valid_pixels = valid_counts[b].item()
                         
-                        if valid_pixels > 50 and score > 0.3: # Threshold
+                        if valid_pixels > 50 and score > 0.3:
                             failure_candidates.append({
                                 'score': score,
-                                'sequence': x[b].cpu(), # Save to CPU
+                                'sequence': x[b].cpu(),
                                 'dates': dates[b].cpu(),
                                 'labels': y[b].cpu(),
                                 'pred_old': preds[b].cpu() 
@@ -713,39 +730,36 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
             failure_candidates.sort(key=lambda k: k['score'], reverse=True)
             top_failures = failure_candidates[:num_samples]
 
-            # SAVE TO FILE
             torch.save(top_failures, save_file)
             print(f"💾 Saved {len(top_failures)} worst failures to {save_file}")
         
-        # Prepare for plotting
         plot_items = top_failures
         is_comparison = False
 
     # ==========================================
-    # MODE 2: COMPARING (Load & Test Improvement)
+    # MODE 2: COMPARING (Legacy - Side by Side)
     # ==========================================
     elif mode == 'compare':
         if not os.path.exists(save_file):
-            print(f"❌ File {save_file} not found. Run with mode='scan' first (delete file to force rescan)!")
+            print(f"❌ File {save_file} not found.")
             return
-
         print(f"⚡ Loading failures from {save_file}...")
         plot_items = torch.load(save_file)
         is_comparison = True
     
     # ==========================================
-    # SHARED PLOTTING LOOP
+    # PLOTTING
     # ==========================================
     print(f"🎨 Plotting {len(plot_items)} samples...")
     
     for idx, item in enumerate(plot_items):
-        # Move to device for inference (if comparing) or just plotting
         x = item['sequence'].unsqueeze(0).to(device)
         dates = item['dates'].unsqueeze(0).to(device)
-        y_true = item['labels'].numpy() # Keep numpy for plot
-        y_old = item['pred_old'].numpy()
+        y_true = item['labels'].numpy()
         
-        # --- NEW PREDICTION (Only if Comparing) ---
+        # In SCAN mode (File exists), 'pred_old' is actually the NEW prediction now
+        y_display = item['pred_old'].numpy()
+        
         if is_comparison:
             with torch.no_grad():
                 logits = model(x, dates)
@@ -753,7 +767,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
         else:
             y_new = None
 
-        # Prepare Input Image (Brightest Day)
+        # Input Image
         rgb_mean = x[0, :, 1:4, :, :].mean(dim=1)
         spatial_mean = rgb_mean.mean(dim=(1,2))
         cloudiest_t = torch.argmax(spatial_mean).item()
@@ -763,31 +777,30 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
         p2, p98 = np.percentile(img_display, (2, 98))
         img_display = np.clip((img_display - p2) / (p98 - p2), 0, 1)
 
-        # PLOT SETUP
         fig, axes = plt.subplots(1, 4, figsize=(24, 6))
 
         # 1. Input
         axes[0].imshow(img_display)
-        axes[0].set_title(f'Input (Day {cloudiest_t})\nSevere Noise', fontsize=14, color='darkred')
+        axes[0].set_title(f'Input (Day {cloudiest_t})', fontsize=14, color='darkred')
         axes[0].axis('off')
 
-        # 2. Ground Truth
+        # 2. GT
         axes[1].imshow(y_true, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
         axes[1].set_title('Ground Truth', fontsize=14)
         axes[1].axis('off')
 
-        # 3. Old Prediction
-        axes[2].imshow(y_old, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
-        axes[2].set_title('Baseline Model (0.55)\nPrediction', fontsize=14)
+        # 3. Prediction (Current Model)
+        axes[2].imshow(y_display, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
+        axes[2].set_title('Prediction (Current Model)', fontsize=14)
         axes[2].axis('off')
 
-        # 4. Fourth Plot: EITHER Error Map (Scan) OR New Pred (Compare)
+        # 4. Error Map (OR Comparison)
         if is_comparison:
             axes[3].imshow(y_new, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
-            axes[3].set_title('Improved Model (0.58)\nPrediction', fontsize=14, color='green')
+            axes[3].set_title('Improved Model Prediction', fontsize=14, color='green')
         else:
-            # Show Error Map if just scanning
-            err_mask = (y_old != y_true).astype(float)
+            # ERROR MAP LOGIC
+            err_mask = (y_display != y_true).astype(float)
             err_mask[y_true == void_idx] = 0.0 
             axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest', vmin=0, vmax=1)
             axes[3].set_title('Error Map', fontsize=14)
@@ -795,7 +808,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
         axes[3].axis('off')
 
         # Legend
-        unique_classes = np.unique(np.concatenate((y_true, y_old)))
+        unique_classes = np.unique(np.concatenate((y_true, y_display)))
         patches = []
         for c in unique_classes:
             if c == void_idx: continue
@@ -808,7 +821,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
 
         plt.subplots_adjust(right=0.88)
         
-        prefix = "comparison" if is_comparison else "failure_rank"
+        prefix = "comparison" if is_comparison else "scan_result"
         save_path = f"{save_dir}/{prefix}_{idx+1}.png"
         plt.savefig(save_path, bbox_inches='tight')
         plt.close()
