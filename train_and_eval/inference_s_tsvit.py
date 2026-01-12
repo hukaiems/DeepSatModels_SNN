@@ -80,7 +80,7 @@ def get_args():
                         help="Plotting out which time step is the most importance for the accuracy of each class.")
     parser.add_argument('--temporal_importance_class', type=int, default=9,
                         help="This is the class number you want to plot the temporal importance experiment.")
-    parser.add_argument('--analyze_cloud', action='store_true',
+    parser.add_argument('--analyze_cloud', type=str, default=None, choices=['scan', 'compare']
                         help=" Analyzing the cloud cover picture and plot out the prediction")
 
     return parser.parse_args()
@@ -187,7 +187,12 @@ def main():
     # Plot cloud analysis
     # ---------------------------------------------------------
     if args.analyze_cloud:
-        visualize_cloud_sensitivity(model, val_loader, device, datasets=args.datasets)
+        visualize_cloud_sensitivity(
+        model, val_loader, device, 
+        datasets='france', 
+        mode=args.analyze_cloud,               # <--- This saves the file
+        save_file='france_failures.pt'
+    )
 
     # ---------------------------------------------------------
     # Plot temporal importance for a specific class

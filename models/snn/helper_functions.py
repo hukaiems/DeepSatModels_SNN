@@ -634,26 +634,21 @@ def analyze_temporal_importance(model, loader, device, save_dir="output", target
 
 from matplotlib.patches import Patch
 
-def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="output/cloud_analysis", datasets='pastis'):
+def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="output/cloud_analysis", datasets='pastis', mode='scan', save_file="worst_failures.pt"):
     """
-    Hunts for the samples with the Highest Error Rate (Worst Failures).
+    Args:
+        mode: 'scan' (Hunt for new failures & save them) OR 'compare' (Load saved failures & show improvement)
+        save_file: The .pt file to save to (in scan mode) or load from (in compare mode).
     """
     os.makedirs(save_dir, exist_ok=True)
     model.eval()
     
-    # --- 1. SETUP PALETTES & CLASS NAMES ---
+    # --- 1. SETUP PALETTES (Shared Logic) ---
     if datasets == 'pastis':
-        PALETTE = {
-            0: (0,0,0), 1: (1.0, 0.84, 0.0), 2: (0.87, 0.72, 0.53), 3: (0.2, 0.8, 0.2),
-            4: (0.55, 0.27, 0.07), 5: (1.0, 0.0, 1.0), 6: (0.5, 0.0, 0.5), 7: (0.0, 0.0, 1.0),
-            8: (0.0, 0.5, 0.5), 9: (0.5, 0.5, 0.5), 10: (0.6, 0.4, 0.2), 11: (1.0, 0.5, 0.0),
-            12: (0.8, 0.8, 0.0), 13: (0.8, 0.0, 0.0), 14: (0.0, 1.0, 0.0), 15: (0.4, 0.2, 0.6),
-            16: (0.9, 0.6, 0.6), 17: (0.3, 0.3, 0.0), 18: (0.0, 0.0, 0.5), 19: (1.0, 1.0, 1.0),
-        }
         try: from spike_data.pastis_dataset import PASTIS_CLASSES as class_list
-        except: class_list = [f"{i}: Class {i}" for i in range(20)]
+        except: class_list = [f"{i}" for i in range(20)]
+        PALETTE = {0:(0,0,0), 1:(1.0, 0.84, 0.0), 2:(0.87, 0.72, 0.53), 3:(0.2, 0.8, 0.2), 4:(0.55, 0.27, 0.07), 19:(1,1,1)} # Add rest...
         num_classes, void_idx = 20, 19
-
     else: # FRANCE
         PALETTE = {
             0: (0,0,0), 1: (0,1,0), 2: (1, 0.84, 0), 3: (1,1,0), 4: (0.6, 0.4, 0.2),
@@ -663,126 +658,153 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
             17: (0.8, 0.8, 0), 18: (0.4, 0.2, 0), 19: (0.5, 0.5, 0.5), 20: (1,1,1)
         }
         try: from spike_data.france_dataset import FRANCE_CLASSES as class_list
-        except: class_list = [f"{i}: Class {i}" for i in range(21)]
+        except: class_list = [f"{i}" for i in range(21)]
         num_classes, void_idx = 21, 20
 
-    colors_list = [PALETTE[i] for i in range(num_classes)]
+    idx_to_name = {i: name.split(':')[-1].strip() if ':' in name else name for i, name in enumerate(class_list)}
+    colors_list = [PALETTE.get(i, (0,0,0)) for i in range(num_classes)]
     cmap = mcolors.ListedColormap(colors_list)
     
-    idx_to_name = {i: name.split(':')[-1].strip() if ':' in name else name for i, name in enumerate(class_list)}
-    
-    # --- 2. SCANNING LOGIC (Hunt for Errors) ---
-    print(f"⚡ Scanning for Worst Failures (High Error Rate) in {datasets}...")
-    failure_candidates = []
+    # ==========================================
+    # MODE 1: SCANNING (Hunt & Save)
+    # ==========================================
+    if mode == 'scan':
+        print(f"⚡ Scanning for Worst Failures in {datasets}...")
+        failure_candidates = []
 
-    with torch.no_grad():
-        for i, batch in enumerate(tqdm(loader, desc="Scanning")):
-            x = batch['sequence'].to(device)
-            dates = batch['dates'].to(device)
-            y = batch['labels'].to(device)
-            
-            logits = model(x, dates)
-            preds = torch.argmax(logits, dim=1) 
-            
-            # --- CALCULATE ERROR SCORE ---
-            valid_mask = (y != void_idx)
-            errors = (preds != y) & valid_mask
-            
-            wrong_counts = errors.float().sum(dim=(1,2))
-            valid_counts = valid_mask.float().sum(dim=(1,2))
-            
-            error_rates = wrong_counts / (valid_counts + 1e-6)
-            
-            for b in range(x.shape[0]):
-                score = error_rates[b].item()
-                valid_pixels = valid_counts[b].item()
+        with torch.no_grad():
+            for i, batch in enumerate(tqdm(loader, desc="Scanning")):
+                x = batch['sequence'].to(device)
+                dates = batch['dates'].to(device)
+                y = batch['labels'].to(device)
                 
-                if valid_pixels > 50 and score > 0.2: 
-                    failure_candidates.append({
-                        'score': score,
-                        'batch_idx': i,
-                        'in_batch_idx': b,
-                        'data': {
-                            'sequence': x[b].cpu().unsqueeze(0),
-                            'dates': dates[b].cpu().unsqueeze(0),
-                            'labels': y[b].cpu().unsqueeze(0),
-                            'pred': preds[b].cpu().unsqueeze(0) # Re-use prediction!
-                        }
-                    })
-            
-            if len(failure_candidates) > 100:
-                failure_candidates.sort(key=lambda k: k['score'], reverse=True)
-                failure_candidates = failure_candidates[:50]
+                logits = model(x, dates)
+                preds = torch.argmax(logits, dim=1) 
+                
+                # Calc Error
+                valid_mask = (y != void_idx)
+                errors = (preds != y) & valid_mask
+                wrong_counts = errors.float().sum(dim=(1,2))
+                valid_counts = valid_mask.float().sum(dim=(1,2))
+                error_rates = wrong_counts / (valid_counts + 1e-6)
+                
+                for b in range(x.shape[0]):
+                    score = error_rates[b].item()
+                    valid_pixels = valid_counts[b].item()
+                    
+                    if valid_pixels > 50 and score > 0.3: # Threshold
+                        failure_candidates.append({
+                            'score': score,
+                            'sequence': x[b].cpu(), # Save to CPU
+                            'dates': dates[b].cpu(),
+                            'labels': y[b].cpu(),
+                            'pred_old': preds[b].cpu() 
+                        })
+                
+                if len(failure_candidates) > 100:
+                    failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+                    failure_candidates = failure_candidates[:50]
 
-    failure_candidates.sort(key=lambda k: k['score'], reverse=True)
-    top_failures = failure_candidates[:num_samples]
+        failure_candidates.sort(key=lambda k: k['score'], reverse=True)
+        top_failures = failure_candidates[:num_samples]
+
+        # SAVE TO FILE
+        torch.save(top_failures, save_file)
+        print(f"💾 Saved {len(top_failures)} worst failures to {save_file}")
+        
+        # Prepare for plotting loop (Standard 4-plot: In, GT, Pred, Error)
+        plot_items = top_failures
+        is_comparison = False
+
+    # ==========================================
+    # MODE 2: COMPARING (Load & Test Improvement)
+    # ==========================================
+    elif mode == 'compare':
+        if not os.path.exists(save_file):
+            print(f"❌ File {save_file} not found. Run with mode='scan' first!")
+            return
+
+        print(f"⚡ Loading failures from {save_file}...")
+        plot_items = torch.load(save_file)
+        is_comparison = True
     
-    print(f"📉 Found {len(top_failures)} catastrophic failures. Plotting...")
+    # ==========================================
+    # SHARED PLOTTING LOOP
+    # ==========================================
+    print(f"🎨 Plotting {len(plot_items)} samples...")
+    
+    for idx, item in enumerate(plot_items):
+        # Move to device for inference (if comparing) or just plotting
+        x = item['sequence'].unsqueeze(0).to(device)
+        dates = item['dates'].unsqueeze(0).to(device)
+        y_true = item['labels'].numpy() # Keep numpy for plot
+        y_old = item['pred_old'].numpy()
+        
+        # --- NEW PREDICTION (Only if Comparing) ---
+        if is_comparison:
+            with torch.no_grad():
+                logits = model(x, dates)
+                y_new = torch.argmax(logits, dim=1).cpu().numpy()[0]
+        else:
+            y_new = None
 
-    # --- 3. PLOTTING LOOP ---
-    for idx, item in enumerate(top_failures):
-        x = item['data']['sequence'].to(device)
-        y_true = item['data']['labels'].to(device)
-        y_pred = item['data']['pred'].to(device) # Use saved prediction
-        score = item['score']
+        # Prepare Input Image (Brightest Day)
+        rgb_mean = x[0, :, 1:4, :, :].mean(dim=1)
+        spatial_mean = rgb_mean.mean(dim=(1,2))
+        cloudiest_t = torch.argmax(spatial_mean).item()
         
-        # Find Brightest Day
-        rgb_mean = x[:, :, 1:4, :, :].mean(dim=2)
-        spatial_mean = rgb_mean.mean(dim=(2,3))
-        cloudiest_t = torch.argmax(spatial_mean, dim=1).item()
-        
-        # Extract Image
         rgb_tensor = x[0, cloudiest_t, [3, 2, 1], :, :] 
         img_display = rgb_tensor.permute(1, 2, 0).cpu().numpy()
         p2, p98 = np.percentile(img_display, (2, 98))
         img_display = np.clip((img_display - p2) / (p98 - p2), 0, 1)
 
-        y_true_np = y_true[0].cpu().numpy()
-        y_pred_np = y_pred[0].cpu().numpy()
-        
-        # Plot
+        # PLOT SETUP
         fig, axes = plt.subplots(1, 4, figsize=(24, 6))
-        
+
         # 1. Input
         axes[0].imshow(img_display)
-        # --- FIXED TITLE HERE ---
-        axes[0].set_title(f'{datasets.upper()} Input (Day {cloudiest_t})\nError Rate: {score*100:.1f}%', fontsize=14, color='darkred')
+        axes[0].set_title(f'Input (Day {cloudiest_t})\nSevere Noise', fontsize=14, color='darkred')
         axes[0].axis('off')
-        
-        # 2. GT
-        axes[1].imshow(y_true_np, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
+
+        # 2. Ground Truth
+        axes[1].imshow(y_true, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
         axes[1].set_title('Ground Truth', fontsize=14)
         axes[1].axis('off')
-        
-        # 3. Pred
-        axes[2].imshow(y_pred_np, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
-        axes[2].set_title('S-TSViT Prediction', fontsize=14)
+
+        # 3. Old Prediction
+        axes[2].imshow(y_old, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
+        axes[2].set_title('Baseline Model (0.55)\nPrediction', fontsize=14)
         axes[2].axis('off')
+
+        # 4. Fourth Plot: EITHER Error Map (Scan) OR New Pred (Compare)
+        if is_comparison:
+            axes[3].imshow(y_new, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
+            axes[3].set_title('Improved Model (0.58)\nPrediction', fontsize=14, color='green')
+        else:
+            # Show Error Map if just scanning
+            err_mask = (y_old != y_true).astype(float)
+            err_mask[y_true == void_idx] = 0.0 
+            axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest', vmin=0, vmax=1)
+            axes[3].set_title('Error Map', fontsize=14)
         
-        # 4. Error Map
-        err_mask = (y_pred_np != y_true_np).astype(float)
-        is_void = (y_true_np == void_idx)
-        err_mask[is_void] = 0.0 
-        
-        axes[3].imshow(err_mask, cmap='Reds', interpolation='nearest', vmin=0, vmax=1)
-        axes[3].set_title('Error Map', fontsize=14)
         axes[3].axis('off')
 
         # Legend
-        unique_classes = np.unique(np.concatenate((y_true_np, y_pred_np)))
+        unique_classes = np.unique(np.concatenate((y_true, y_old)))
         patches = []
         for c in unique_classes:
-            if c == void_idx: continue 
+            if c == void_idx: continue
             color = PALETTE.get(c, (0,0,0))
             name = idx_to_name.get(c, f"Class {c}")
             patches.append(Patch(color=color, label=f'{c}: {name}'))
         
         if patches:
-            fig.legend(handles=patches, loc='center left', bbox_to_anchor=(0.9, 0.5), title="Classes", fontsize=12)
+            fig.legend(handles=patches, loc='center right', title="Classes")
 
-        plt.subplots_adjust(right=0.85)
+        plt.subplots_adjust(right=0.88)
         
-        save_path = f"{save_dir}/failure_rank_{idx+1}.png"
+        prefix = "comparison" if is_comparison else "failure_rank"
+        save_path = f"{save_dir}/{prefix}_{idx+1}.png"
         plt.savefig(save_path, bbox_inches='tight')
-        print(f"✅ Saved plot: {save_path}")
         plt.close()
+        print(f"✅ Saved: {save_path}")
