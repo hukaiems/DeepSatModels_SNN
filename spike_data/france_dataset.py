@@ -111,7 +111,7 @@ class FranceDataset:
         
         cloud_mask = cloud_mask.unsqueeze(1).expand_as(x)
 
-        x[cloud_mask] = 0.0
+        # x[cloud_mask] = 0.0
 
         # -----------------------------------------------------------
         # PART B: NORMALIZE
