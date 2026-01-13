@@ -781,7 +781,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
 
         # 1. Input
         axes[0].imshow(img_display)
-        axes[0].set_title(f'Input (Day {cloudiest_t})', fontsize=14, color='darkred')
+        axes[0].set_title(f'Input', fontsize=14, color='darkred')
         axes[0].axis('off')
 
         # 2. GT
