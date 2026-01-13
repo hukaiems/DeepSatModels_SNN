@@ -817,7 +817,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
             patches.append(Patch(color=color, label=f'{c}: {name}'))
         
         if patches:
-            fig.legend(handles=patches, loc='center right', title="Classes", fontsize=13, title_fontsize=18)
+            fig.legend(handles=patches, loc='center right', title="Classes", fontsize=11, title_fontsize=18)
 
         plt.subplots_adjust(right=0.88)
         
