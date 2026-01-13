@@ -791,7 +791,7 @@ def visualize_cloud_sensitivity(model, loader, device, num_samples=5, save_dir="
 
         # 3. Prediction (Current Model)
         axes[2].imshow(y_display, cmap=cmap, vmin=0, vmax=num_classes-1, interpolation='nearest')
-        axes[2].set_title('Prediction (Without masking)', fontsize=14)
+        axes[2].set_title('Prediction (With masking)', fontsize=14)
         axes[2].axis('off')
 
         # 4. Error Map (OR Comparison)
