@@ -73,7 +73,7 @@ class FranceDataset:
         return len(self.df)
     
     def __getitem__(self, idx):
-        TARGET_SIZE = 24
+        TARGET_SIZE = 48
 
         # 1. Find file path
         relative_path = self.df.iloc[idx, 0]
@@ -142,7 +142,7 @@ class FranceDataset:
         # -----------------------------------------------------------
         # PART D: TIME PADDING (Cut or Pad to max_seq_len)
         # -----------------------------------------------------------
-        # x shape is (T, 13, 24, 24)
+        # x shape is (T, 13, TARGET_SIZE, TARGET_SIZE)
         current_len = x.shape[0]
         target_len = self.max_seq_len
 
@@ -156,7 +156,7 @@ class FranceDataset:
         else:
             # too short case
             pad_amount = target_len - current_len
-            new_x = torch.zeros(target_len, 13, 24, 24)
+            new_x = torch.zeros(target_len, 13, TARGET_SIZE, TARGET_SIZE)
             new_x[:current_len] = x
             x = new_x
 
