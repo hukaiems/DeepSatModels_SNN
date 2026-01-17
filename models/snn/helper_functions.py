@@ -284,10 +284,10 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 
 def plot_phenological_confusion(
     dataloader, 
-    save_path="output/triticale_vs_wheat_phenology.png", # Updated filename
+    save_path="output/barley_confusion_new.png", # Updated filename
     band_idx=3, 
     band_name="NIR Intensity (Normalized)",
-    num_samples=1000,
+    num_samples=5000,
     window_size=5
 ):
     # --- 1. CONFIGURATION ---
@@ -387,7 +387,7 @@ def plot_phenological_confusion(
         plt.title(f"Spectral Profile Overlap: Winter Barley vs. Spring Barley\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
-        plt.legend(fontsize=12, loc='upper right')
+        plt.legend(fontsize=12, loc='upper right')  
         plt.grid(True, linestyle='--', alpha=0.6)
         
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
