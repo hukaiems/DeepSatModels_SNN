@@ -293,8 +293,8 @@ def plot_phenological_confusion(
     # --- 1. CONFIGURATION ---
     # CORRECTION: Triticale is ID 10, Wheat is ID 2
     class_map = {
-        10: "Winter Triticale (Class 10)",      # The Confusing Class
-        17: "Mixed Cereal (Class 17)"        # The Control Class
+        4: "Winter Barley (Class 4)",      # The Confusing Class
+        6: "Spring Barley (Class 6)"        # The Control Class
     }
 
     # Setup storage
@@ -347,8 +347,8 @@ def plot_phenological_confusion(
     
     # CORRECTION: Updated keys to match class_map (10 and 2)
     # Triticale (Orange-ish to stand out), Wheat (Blue standard)
-    colors = { 10: '#ff7f0e', 17: '#58E074'} 
-    styles = { 10: '--', 17: '-'}
+    colors = { 4: '#ff7f0e', 6: '#58E074'} 
+    styles = { 4: '--', 6: '-'}
     
     found_any = False
     
@@ -384,7 +384,7 @@ def plot_phenological_confusion(
                          color=colors[cls_id], alpha=0.15)
 
     if found_any:
-        plt.title(f"Spectral Profile Overlap: Triticale vs. Mixed Cereal\n({band_name})", fontsize=16)
+        plt.title(f"Spectral Profile Overlap: Winter Barley vs. Spring Barley\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
         plt.legend(fontsize=12, loc='upper right')
