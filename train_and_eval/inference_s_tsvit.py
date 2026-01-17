@@ -209,8 +209,7 @@ def main():
     if args.NDVI:
         print("🔎 Running Phenological Analysis...")
         plot_phenological_confusion(
-            dataloader=val_loader, 
-            save_path="output/phenology_confusion.png"
+            dataloader=val_loader,
         )
         print("✅ Analysis Complete. Check output folder.")
 
