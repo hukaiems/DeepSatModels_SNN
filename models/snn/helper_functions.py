@@ -285,7 +285,7 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 def plot_phenological_confusion(
     dataloader, 
     save_path="output/barley_confusion_new.png", # Updated filename
-    band_idx=6, 
+    band_idx=7, 
     band_name="NIR Intensity (Normalized)",
     num_samples=5000,
     window_size=5
