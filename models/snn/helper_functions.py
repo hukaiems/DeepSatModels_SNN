@@ -400,10 +400,9 @@ def plot_phenological_confusion(
         plt.fill_between(
             x_axis, overlap_lower, overlap_upper, 
             where=(overlap_upper > overlap_lower),
-            color='#00FF00',       # Bright Green
+            color='#7DF09C',       # Bright Green
             alpha=0.6,             # High alpha for visibility
             label='Confusion Zone (Intersection)',
-            hatch='///',           # Texture
             zorder=10              # Forces green to sit ON TOP of other colors
         )
 
