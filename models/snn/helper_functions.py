@@ -282,22 +282,29 @@ def compute_and_plot_cm(model, val_loader, device, num_classes=20, class_names=N
 
 # The NDVI test to show compare the phenology of similar parcels.
 
+import os
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+
 def plot_phenological_confusion(
     dataloader, 
-    save_path="output/barley_confusion_new.png", # Updated filename
+    save_path="output/barley_confusion_overlap.png", 
     band_idx=7, 
     band_name="NIR Intensity (Normalized)",
     num_samples=5000,
     window_size=5
 ):
     # --- 1. CONFIGURATION ---
-    # CORRECTION: Triticale is ID 10, Wheat is ID 2
     class_map = {
-        4: "Winter Barley (Class 4)",      # The Confusing Class
-        6: "Spring Barley (Class 6)"        # The Control Class
+        4: "Winter Barley (Class 4)", 
+        6: "Spring Barley (Class 6)"
     }
+    
+    # Store processed curves here to compare them later
+    curves = {} 
 
-    # Setup storage
     profiles = {k: [] for k in class_map.keys()}
     counts = {k: 0 for k in class_map.keys()}
 
@@ -309,82 +316,91 @@ def plot_phenological_confusion(
             inputs = batch['sequence'].cpu()
             targets = batch['labels'].cpu()
 
-            # Flatten batch dimensions: [B, T, C, H, W] -> [N, T, C]
             if inputs.dim() == 5:
                 B, T, C, H, W = inputs.shape
-                # Permute to put H,W alongside Batch, then flatten
                 inputs = inputs.permute(0, 3, 4, 1, 2).reshape(-1, T, C)
                 targets = targets.view(-1)
             
-            # Loop through our target classes
             for cls_id in class_map.keys():
-                # Skip if we already have enough data for this class
                 if counts[cls_id] >= num_samples: continue
 
-                # Find pixels belonging to this class
                 mask = (targets == cls_id)
                 if mask.sum() > 0:
                     class_data = inputs[mask]
-                    
                     needed = num_samples - counts[cls_id]
                     to_take = class_data[:needed]
                     
                     profiles[cls_id].append(to_take.numpy())
                     counts[cls_id] += len(to_take)
 
-            # Break early if we have full sets
             if all(c >= num_samples for c in counts.values()):
                 break
 
-    # --- 2. SMOOTHING FUNCTION ---
+    # --- 3. SMOOTHING FUNCTION ---
     def moving_average(data, window_size):
         pad = window_size // 2
         padded = np.pad(data, (pad, pad), mode='edge')
         return np.convolve(padded, np.ones(window_size)/window_size, mode='valid')
 
-    # --- 3. PLOTTING ---
-    plt.figure(figsize=(12, 7))
-    
-    # CORRECTION: Updated keys to match class_map (10 and 2)
-    # Triticale (Orange-ish to stand out), Wheat (Blue standard)
-    colors = { 4: '#ff7f0e', 6: '#58E074'} 
-    styles = { 4: '--', 6: '-'}
-    
-    found_any = False
-    
+    # --- 4. PRE-CALCULATE CURVES ---
+    # We must calculate the curves BEFORE plotting to find the intersection
     for cls_id, name in class_map.items():
-        if len(profiles[cls_id]) == 0: 
-            print(f"⚠️ Warning: No samples found for {name}")
-            continue
+        if len(profiles[cls_id]) == 0: continue
         
-        found_any = True
-        
-        # Concatenate all pixels
         data_block = np.concatenate(profiles[cls_id], axis=0)
-        
-        # Extract the specific band
         band_data = data_block[:, :, band_idx]
         
-        # Calculate Mean and Std
         mean_profile = np.mean(band_data, axis=0)
         std_profile = np.std(band_data, axis=0)
 
         smooth_mean = moving_average(mean_profile, window_size)
         smooth_std = moving_average(std_profile, window_size)
+        
+        # Save the Upper and Lower bounds for this class
+        curves[cls_id] = {
+            'mean': smooth_mean,
+            'lower': smooth_mean - 0.5 * smooth_std,
+            'upper': smooth_mean + 0.5 * smooth_std,
+            'name': name
+        }
 
-        x_axis = np.arange(len(smooth_mean))
+    # --- 5. PLOTTING ---
+    plt.figure(figsize=(12, 7))
+    colors = { 4: '#ff7f0e', 6: '#58E074'} 
+    styles = { 4: '--', 6: '-'}
+    
+    x_axis = None
 
-        # Plot Line
-        plt.plot(x_axis, smooth_mean, label=name, 
+    # Plot individual lines and shadows
+    for cls_id, data in curves.items():
+        if x_axis is None: x_axis = np.arange(len(data['mean']))
+        
+        plt.plot(x_axis, data['mean'], label=data['name'], 
                  color=colors[cls_id], linestyle=styles[cls_id], linewidth=3)
         
-        # Plot Shadow
-        plt.fill_between(x_axis, smooth_mean - 0.5*smooth_std, 
-                         smooth_mean + 0.5*smooth_std, 
+        plt.fill_between(x_axis, data['lower'], data['upper'], 
                          color=colors[cls_id], alpha=0.15)
 
-    if found_any:
-        plt.title(f"Spectral Profile Overlap: Winter Barley vs. Spring Barley\n({band_name})", fontsize=16)
+    # --- KEY CHANGE: PLOT INTERSECTION ---
+    # We check if both classes exist to calculate overlap
+    if 4 in curves and 6 in curves:
+        # The overlap bottom is the higher of the two lower bounds
+        overlap_lower = np.maximum(curves[4]['lower'], curves[6]['lower'])
+        # The overlap top is the lower of the two upper bounds
+        overlap_upper = np.minimum(curves[4]['upper'], curves[6]['upper'])
+        
+        # Fill only where the top is actually higher than the bottom (valid overlap)
+        plt.fill_between(
+            x_axis, overlap_lower, overlap_upper, 
+            where=(overlap_upper > overlap_lower),
+            color='#00FF00',       # Bright Green
+            alpha=0.5,             # Higher alpha to make it pop
+            label='Confusion Zone (Intersection)',
+            hatch='///'            # Optional: Adds texture to make it clearer
+        )
+
+    if curves:
+        plt.title(f"Spectral Profile Overlap: Winter vs. Spring Barley\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
         plt.legend(fontsize=12, loc='upper right')  
@@ -394,7 +410,7 @@ def plot_phenological_confusion(
         plt.savefig(save_path, dpi=300)
         print(f"✅ Saved Analysis Plot to {save_path}")
     else:
-        print("❌ Failed to generate plot: No data found for selected classes.")
+        print("❌ Failed to generate plot: No data found.")
 
 # USAGE:
 # plot_phenological_confusion(val_loader, band_idx=3)
