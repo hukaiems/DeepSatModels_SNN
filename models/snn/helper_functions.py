@@ -298,8 +298,8 @@ def plot_phenological_confusion(
 ):
     # --- 1. CONFIGURATION ---
     class_map = {
-        4: "Winter Barley (Class 4)", 
-        6: "Spring Barley (Class 6)"
+        2: "Soft Winter Wheat (Class 2)", 
+        10: "Winter Triticale (Class 10)"
     }
     
     # Store processed curves here to compare them later
@@ -366,8 +366,8 @@ def plot_phenological_confusion(
 
     # --- 5. PLOTTING ---
     plt.figure(figsize=(12, 7))
-    colors = { 4: '#ff7f0e', 6: '#58E074'} 
-    styles = { 4: '--', 6: '-'}
+    colors = { 2: '#ff7f0e', 10: '#5797FF'} 
+    styles = { 2: '--', 10: '-'}
     
     x_axis = None
 
@@ -400,7 +400,7 @@ def plot_phenological_confusion(
         )
 
     if curves:
-        plt.title(f"Spectral Profile Overlap: Winter vs. Spring Barley\n({band_name})", fontsize=16)
+        plt.title(f"Spectral Profile Overlap: Winter Triticale vs. Soft Winter Wheat\n({band_name})", fontsize=16)
         plt.xlabel("Time Steps (Season)", fontsize=14)
         plt.ylabel("Pixel Intensity (Normalized)", fontsize=14)
         plt.legend(fontsize=12, loc='upper right')  
