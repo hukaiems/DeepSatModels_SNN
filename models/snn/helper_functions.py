@@ -381,22 +381,30 @@ def plot_phenological_confusion(
         plt.fill_between(x_axis, data['lower'], data['upper'], 
                          color=colors[cls_id], alpha=0.15)
 
-    # --- KEY CHANGE: PLOT INTERSECTION ---
-    # We check if both classes exist to calculate overlap
-    if 4 in curves and 6 in curves:
+    # ... [Previous plotting code] ...
+
+    # --- KEY CHANGE: DYNAMIC INTERSECTION PLOT ---
+    # Get the list of actual IDs found (e.g., [2, 10])
+    ids = list(curves.keys())
+
+    # Only plot intersection if we have exactly 2 classes to compare
+    if len(ids) == 2:
+        id1, id2 = ids[0], ids[1]
+        
         # The overlap bottom is the higher of the two lower bounds
-        overlap_lower = np.maximum(curves[4]['lower'], curves[6]['lower'])
+        overlap_lower = np.maximum(curves[id1]['lower'], curves[id2]['lower'])
         # The overlap top is the lower of the two upper bounds
-        overlap_upper = np.minimum(curves[4]['upper'], curves[6]['upper'])
+        overlap_upper = np.minimum(curves[id1]['upper'], curves[id2]['upper'])
         
         # Fill only where the top is actually higher than the bottom (valid overlap)
         plt.fill_between(
             x_axis, overlap_lower, overlap_upper, 
             where=(overlap_upper > overlap_lower),
             color='#00FF00',       # Bright Green
-            alpha=0.5,             # Higher alpha to make it pop
+            alpha=0.6,             # High alpha for visibility
             label='Confusion Zone (Intersection)',
-            hatch='///'            # Optional: Adds texture to make it clearer
+            hatch='///',           # Texture
+            zorder=10              # Forces green to sit ON TOP of other colors
         )
 
     if curves:
