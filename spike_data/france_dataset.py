@@ -134,7 +134,7 @@ class FranceDataset:
         y = torch.from_numpy(label_remapped).long() # create tensor wrapper for numpy arr
 
         if y.shape[-1] != TARGET_SIZE:
-            y = y.unsqueeze(0).unsqueeze(0).float()
+            y = y.unsqueeze(0).unsqueeze(0).float() # create 4D to work with interpolate
             y = F.interpolate(y, size=(TARGET_SIZE, TARGET_SIZE), mode='nearest')
             y = y.squeeze().long() # remove all dim with size 1
         

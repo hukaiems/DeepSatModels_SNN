@@ -40,6 +40,7 @@ class NormAndPadLayer(nn.Module):
             output = self.norm(input)
 
             # calculating the values
+            # recalculate the BN
             if self.pad_pixels > 0:
                 if self.norm.affine:
                     pad_values = (
@@ -203,9 +204,9 @@ class MS_Attention_RepConv(nn.Module):
         # turn  QKV into spikes 
         q = self.q_lif(q).flatten(3) # flatten into 1 d
         q = ( # repairing for attn  
-            q.transpose(-1, -2) # change to T, B, N, C => transformer format
-            .reshape(T, B, N, self.num_heads, C // self.num_heads)
-            .transpose(2, 3) # transpose swap 2, permute reorder all.
+            q.transpose(-1, -2) # change to T, B, N, C => transformer format -  (1, B', Time, C)
+            .reshape(T, B, N, self.num_heads, C // self.num_heads) #            (1, B', Time, 8, 8)
+            .transpose(2, 3) # transpose swap 2, permute reorder all. -         (1, B', 8, Time, 8)
             .contiguous()
         )  # Shape: (T, B, num_heads, N, head_dim)
 
