@@ -245,33 +245,65 @@ def main():
     miou_metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
     oa_metric = MulticlassAccuracy(num_classes=num_classes, average='micro', ignore_index=ignore_index).to(device)
 
+    #---------------------------------------------------------
+    # Speed Test & Single Location Inference
+    # ---------------------------------------------------------
     if args.inference:
+        print("\n--- ⏱️ STARTING SPEED TEST (1 LOCATION) ---")
+        
+        # 1. Reset Model & Metrics
         reset_net(model)
         model.eval()
+        
+        # Initialize metrics just for this one test
+        # Note: We re-initialize here to ensure they are empty
+        single_miou_metric = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
+        single_oa_metric = MulticlassAccuracy(num_classes=num_classes, average='micro', ignore_index=ignore_index).to(device)
+
+        import time
+
+        # 2. Get ONE single batch
+        try:
+            # This grabs the very first batch (Location #1) from the CSV
+            batch = next(iter(val_loader))
+        except StopIteration:
+            print("❌ Error: Validation loader is empty!")
+            return
+
+        x = batch['sequence'].to(device)
+        dates = batch['dates'].to(device)
+        y = batch['labels'].to(device)
+        
+        print(f"📍 Processing Location Shape: {x.shape} (Batch, Time, Bands, H, W)")
+
+        # 3. Start Timer
+        start_time = time.time()
 
         with torch.no_grad():
-            for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
-                x = batch['sequence'].to(device)
-                dates = batch['dates'].to(device)
-                y = batch['labels'].to(device)
+            logits = model(x, dates)
+            preds = torch.argmax(logits, dim=1)
+            
+            # Update metrics with this single batch
+            single_miou_metric.update(preds, y)
+            single_oa_metric.update(preds, y)
 
-                # Inference
-                logits = model(x, dates)
-                preds = torch.argmax(logits, dim=1)
-                
-                # Update Metric
-                miou_metric.update(preds, y)
-                oa_metric.update(preds, y)
+        # 4. Stop Timer
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        # 5. Compute Scores
+        final_miou = single_miou_metric.compute().item()
+        final_oa = single_oa_metric.compute().item()
 
-                # Reset SNN states (Voltage = 0)
-                reset_net(model)
-
-        final_miou = miou_metric.compute().item()
-        final_oa = oa_metric.compute().item()
-        print(f"\n=========================================")
-        print(f"🏆 Final Test mIoU: {final_miou:.4f}")
-        print(f"🎯 Final Test OA: {final_oa:.4f}")
+        print(f"✅ Inference Finished!")
+        print(f"⏱️ Time taken for 1 Location: {duration:.4f} seconds")
+        print(f"=========================================")
+        print(f"🏆 Single Sample mIoU: {final_miou:.4f}")
+        print(f"🎯 Single Sample OA:   {final_oa:.4f}")
         print(f"=========================================\n")
+        
+        # IMPORTANT: Return here so the script stops and doesn't run anything else
+        return
 
 if __name__ == "__main__": # only run if execute python command.
     main() 
