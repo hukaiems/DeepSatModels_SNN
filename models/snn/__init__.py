@@ -1,8 +1,5 @@
 # models/snn/__init__.py
 
-# 1. Import from neighbor file snn_encoder.py
-from .snn_encoder import RecurrentSpikingEncoder
-
 # 2. Import from neighbor file snn_transformer.py
 from .snn_transformer import (
     TemporalSpikingTransformer, 
