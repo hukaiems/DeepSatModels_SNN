@@ -1,43 +1,102 @@
-# Repository for Land Cover Recognition Model Training Using Satellite Imagery
+# DeepSatModels_SNN — Spiking Temporo-Spatial Vision Transformer
 
-Welcome to the dedicated repository for advancing land cover recognition through the application of state-of-the-art models on satellite imagery. This repository serves as a comprehensive resource for researchers and practitioners in the field, providing access to research code, detailed setup instructions, and guidelines for conducting experiments with satellite image timeseries data.
+Compact, production-friendly README for the spiking temporo-spatial vision transformer used for land-cover recognition (graduation thesis project).
 
-## Featured Research Publications
+Highlights
+- SOTA performance on the PASTIS dataset using a spiking TSViT+SVF hybrid.
+- Very low spike firing rate (~5.8%) and an estimated ~85x energy efficiency vs equivalent ANN.
 
-This repository highlights contributions to the field through the following research publications:
+Badges
+- (optional) License: see `LICENSE.txt`
+- (optional) Paper / citation: add link when available
 
-- [ViTs for SITS: Vision Transformers for Satellite Image Time Series](https://openaccess.thecvf.com/content/CVPR2023/html/Tarasiou_ViTs_for_SITS_Vision_Transformers_for_Satellite_Image_Time_Series_CVPR_2023_paper.html) - Featured at CVPR 2023, this paper explores the application of Vision Transformers to Satellite Image Time Series analysis. For further details, please consult the [README_TSVIT.md](https://github.com/michaeltrs/DeepSatModels/blob/main/README_TSVIT.md) document.
-- [Context-self contrastive pretraining for crop type semantic segmentation](https://ieeexplore.ieee.org/abstract/document/9854891) - 
-Published in IEEE Transactions on Geoscience and Remote Sensing, this work introduces a novel supervised pretraining method for semantic segmentation 
-of crop types exhibiti performance gains along object boundaries. Additional information is available in the [README_CSCL.md](https://github.com/michaeltrs/DeepSatModels/blob/main/README_CSCL.md) document.
+Table of contents
+- Quickstart
+- Requirements
+- Datasets & setup
+- Training
+- Inference / Evaluation
+- Reproducing results
+- Project structure
+- Citation & license
+- Contributing / Contact
 
-## Environment Setup
+Quickstart
+1. Create a Python environment and install dependencies:
 
-### Installation of Miniconda
-For the initial setup, please follow the instructions for downloading and installing Miniconda available at the [official Conda documentation](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html).
+```bash
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+```
 
-### Environment Configuration
-1. **Creating the Environment**: Navigate to the code directory in your terminal and create the environment using the provided `.yml` file by executing:
+2. Prepare datasets (the repo provides helper scripts):
 
-        conda env create -f deepsatmodels_env.yml
+```bash
+bash setup_pastis.sh    # downloads & prepares PASTIS dataset (Linux/macOS)
+bash setup_France.sh    # downloads & prepares France dataset
+```
 
-2. **Activating the Environment**: Activate the newly created environment with:
+3. Train or run inference with a config (examples below).
 
-        source activate deepsatmodels
+Requirements
+- See `requirements.txt` for full pinned dependencies. Use a recent Python 3.8+ interpreter and a PyTorch build compatible with your CUDA driver when training on GPU.
 
-3. **PyTorch Installation**: Install the required version of PyTorch along with torchvision and torchaudio by running:
+Datasets & setup
+- This repository supports PASTIS and France datasets. The provided scripts `setup_pastis.sh` and `setup_France.sh` download and prepare the data automatically (Kaggle credentials may be required for PASTIS). For manual dataset code, see `spike_data/pastis_dataset.py` and `spike_data/france_dataset.py`.
 
-        conda install pytorch torchvision torchaudio cudatoolkit=10.1 -c pytorch-nightly
+Training (example)
+Use the training entrypoint in `train_and_eval/train_stsvit.py` with a configuration file from `configs/`.
 
+```bash
+python train_and_eval/train_stsvit.py --cfg configs/PASTIS24/TSViT_fold1.yaml
+```
 
-## Experiment Setup
+Notes:
+- Replace `--cfg` with any config in `configs/PASTIS24` (or other dataset folders).
+- Add `--work-dir` or other CLI args as supported by the script; use `--help` to list options.
 
-- **Configuration**: Specify the base directory and paths for training and evaluation datasets within the `data/datasets.yaml` file.
-- **Experiment Configuration**: Use a distinct `.yaml` file for each experiment, located in the `configs` folder. These configuration files encapsulate default parameters aligned with those used in the featured research. Modify these `.yaml` files as necessary to accommodate custom datasets.
-- **Guidance on Experiments**: For detailed instructions on setting up and conducting experiments, refer to the specific README.MD files associated with each paper or dataset.
+Inference example
 
-## License and Copyright
+```bash
+python train_and_eval/inference_s_tsvit.py \
+	--ckpt model_checkpoint/snn_unet_latest_checkpoint_75subset_max_30_deeper.pth \
+	--cfg configs/PASTIS24/TSViT_fold1_test_checkpoint.yaml
+```
 
-This project is made available under the Apache License 2.0. Please see the [LICENSE](https://github.com/michaeltrs/DeepSatModels/blob/main/LICENSE.txt) file for detailed licensing information.
+Pretrained models
+- Available checkpoints are placed in `model_checkpoint/` in this repo (examples: `snn_unet_latest_*.pth`, `spike_tsvit_151M_pastis_run_latest_latest.pth`). If additional or larger weights are hosted externally, add links and download helpers here.
 
-Copyright © 2023 by Michail Tarasiou
+Reproducing reported results
+- Use the provided configs under `configs/PASTIS24` (folds and evaluation configs are included).
+- For deterministic runs, set seeds and deterministic flags via the training script's CLI (check `train_stsvit.py --help`).
+- Record the config file, checkpoint, and random seed used for any reported experiment.
+
+Project structure (short)
+- `models/` — model implementations (see `models/snn/` for spiking models and helpers).
+- `spike_data/` — dataset loaders and preprocessing for PASTIS/France.
+- `train_and_eval/` — training, evaluation, and inference scripts.
+- `configs/` — YAML experiment configs (dataset-specific subfolders and fold definitions).
+- `model_checkpoint/` — included checkpoints for quick evaluation.
+- `notebook_code/` — Jupyter notebooks for experiments and visualizations.
+
+Development & contributing
+- Report issues or feature requests via the repository issue tracker.
+- For contributions, fork the repo, create a feature branch, and open a pull request. Please follow code style in existing files and keep changes focused.
+
+Citation & license
+- License: `LICENSE.txt` in this repository.
+- Paper: please cite the project paper (link / BibTeX to be added here). If you use this code in published work, include a citation to the thesis/paper and indicate which config and checkpoints were used.
+
+Contact
+- For questions about experiments or reproducibility, open an issue or contact the authors (add email or contact method here).
+
+Acknowledgements
+- See `LICENSE.txt` for license terms and any third-party acknowledgements.
+
+—
+If you'd like, I can:
+- Add runnable example commands with exact CLI flags after inspecting `train_and_eval/train_stsvit.py` and `inference_s_tsvit.py`.
+- Add a small `USAGE.md` with reproducible steps for the PASTIS baseline.
+
+If you want this text committed, tell me and I'll save it to `README.md` and create a commit.

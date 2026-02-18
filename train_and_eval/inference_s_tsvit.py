@@ -1,5 +1,6 @@
 import sys
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # 1. Get the directory of the current script (train_stsvit.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
