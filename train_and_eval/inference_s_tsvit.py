@@ -252,13 +252,16 @@ def main():
     # Speed Test & Single Location Inference
     # ---------------------------------------------------------
     if args.inference:
+        mIoU_rank = []
         
         # 1. Reset Model & Metrics
         reset_net(model)
         model.eval()
+
+        single_miou = MulticlassJaccardIndex(num_classes=num_classes, average='macro', ignore_index=ignore_index).to(device)
         
         with torch.no_grad():
-            for batch in tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar):
+            for index, batch in enumerate( tqdm(val_loader, desc="Evaluating Accuracy", disable=args.no_progress_bar) ):
                 x = batch['sequence'].to(device)
                 dates = batch['dates'].to(device)
                 y = batch['labels'].to(device)
@@ -271,8 +274,27 @@ def main():
                 miou_metric.update(preds, y)
                 oa_metric.update(preds, y)
 
+                # calculate miou for this specific location
+                single_miou.update(preds, y)
+                current_score = single_miou.compute().item()
+                single_miou.reset()
+                mIoU_rank.append({"score": current_score, "index": index})
+
                 # Reset SNN states (Voltage = 0)
                 reset_net(model)
+
+
+        # sort
+        sort_score = sorted(mIoU_rank, key=lambda x: x["score"], reverse=True)
+        top_10 = sort_score[:10]
+        
+        print(f"\n=========================================")
+        print(f"🏆 Top 10 Best Performing Locations:")
+        for item in top_10:
+            # We use the index to look up the exact filename in your validation dataframe
+            filename = val_df.iloc[item['index'], 0] 
+            print(f"File: {filename} | mIoU: {item['score']:.4f}")
+        print(f"=========================================\n")
 
         final_miou = miou_metric.compute().item()
         final_oa = oa_metric.compute().item()
