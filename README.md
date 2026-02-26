@@ -1,102 +1,237 @@
-# DeepSatModels_SNN — Spiking Temporo-Spatial Vision Transformer
+# S-TSViT: An Energy-Efficient Spiking Transformer for Satellite Image Time Series Analysis
 
-Compact, production-friendly README for the spiking temporo-spatial vision transformer used for land-cover recognition (graduation thesis project).
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 
-Highlights
-- SOTA performance on the PASTIS dataset using a spiking TSViT+SVF hybrid.
-- Very low spike firing rate (~5.8%) and an estimated ~85x energy efficiency vs equivalent ANN.
+> **Fusion of [TSViT](https://github.com/michaeltrs/DeepSatModels) (Temporal-Spatial Vision Transformer) and [SVF](https://github.com/JimmyZou/SpikeVideoFormer) (SpikeVideoFormer)**  
+> Spiking Neural Networks meet Remote Sensing for low energy consumption, high-performance crop segmentation.
 
-Badges
-- (optional) License: see `LICENSE.txt`
-- (optional) Paper / citation: add link when available
+---
 
-Table of contents
-- Quickstart
-- Requirements
-- Datasets & setup
-- Training
-- Inference / Evaluation
-- Reproducing results
-- Project structure
-- Citation & license
-- Contributing / Contact
+## 📋 Overview
 
-Quickstart
-1. Create a Python environment and install dependencies:
+**S-TSViT** bridges two research frontiers:
 
-```bash
-python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-```
+| Component | Source | Contribution |
+|-----------|--------|------------|
+| **TSViT** | DeepSatModels ([Tarasoiu et al., 2023](https://arxiv.org/abs/2301.04940)) | Temporal-spatial attention for satellite time series |
+| **SVF** | SpikeVideoFormer | Energy-efficient spiking neurons for video/spatio-temporal data |
 
-2. Prepare datasets (the repo provides helper scripts):
+**Our Innovation**: Replace TSViT's standard temporal encoder with **Spiking Neural Network (SNN) dynamics**, achieving:
+- ⚡ **58× lower energy consumption in theory** (compared to equivalent ANNs)
+- 🧠 **Achieved SOTA in PASTIS dataset** (highest with 66.9%)
+- 🔽 **Reduced model size by 12%**.
 
-```bash
-bash setup_pastis.sh    # downloads & prepares PASTIS dataset (Linux/macOS)
-bash setup_France.sh    # downloads & prepares France dataset
-```
+Paper: [PDF version](/docs/paper.pdf)
+---
 
-3. Train or run inference with a config (examples below).
+## 🏗️ Architecture
 
-Requirements
-- See `requirements.txt` for full pinned dependencies. Use a recent Python 3.8+ interpreter and a PyTorch build compatible with your CUDA driver when training on GPU.
+![S-TSViT Architecture](docs/s-tsvit_final_real.png) <!-- Add your illustration here -->
 
-Datasets & setup
-- This repository supports PASTIS and France datasets. The provided scripts `setup_pastis.sh` and `setup_France.sh` download and prepare the data automatically (Kaggle credentials may be required for PASTIS). For manual dataset code, see `spike_data/pastis_dataset.py` and `spike_data/france_dataset.py`.
+### Two Variants
 
-Training (example)
-Use the training entrypoint in `train_and_eval/train_stsvit.py` with a configuration file from `configs/`.
+| Variant | Temporal Collapse | Use Case |
+|---------|-------------------|----------|
+| `SpikeTSViTMean` | Before spatial encoding | Faster, less memory | lower accuracy |
+| `SpikeTSViTNoMean` | After spatial encoding | Richer spatio-temporal features |
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+- Python 3.8+
+- CUDA-capable GPU (10GB+ VRAM recommended)
+
+### Quick Start
 
 ```bash
-python train_and_eval/train_stsvit.py --cfg configs/PASTIS24/TSViT_fold1.yaml
+# Clone repository
+git clone https://github.com/hukaiems/Spiking_Temporo-Spatial_Vision_Transformer.git
+cd DeepSatModels_SNN
+
+# One-command setup (downloads PASTIS data automatically)
+export KAGGLE_USERNAME="your_username"
+export KAGGLE_KEY="your_key"
+bash setup_pastis.sh
 ```
 
-Notes:
-- Replace `--cfg` with any config in `configs/PASTIS24` (or other dataset folders).
-- Add `--work-dir` or other CLI args as supported by the script; use `--help` to list options.
+The setup script will:
+- Install dependencies (`requirements.txt`)
+- Download PASTIS dataset from Kaggle (I have upload it myself)
+- Prepare checkpoint directory
 
-Inference example
+---
 
+## 🚀 Training
+This is my traning script on kaggle using P100.
+```
+# 1.51 M 
+!python /kaggle/working/DeepSatModels_SNN/train_and_eval/train_stsvit.py \
+    --csv_path /kaggle/working/DeepSatModels_SNN/configs/PASTIS24/splits/old_split_kaggle/train_exp1_chunks_123.csv.bak \
+    --val_csv_path /kaggle/working/DeepSatModels_SNN/configs/PASTIS24/splits/old_split_kaggle/chunk_4_paths.csv.bak \
+    --resume /kaggle/input/spike-tsvit/pytorch/default/54/128dim_pastis_ver3/training/s_tsvit_ignore_128dim_21e_pastis_1.pth \
+    --model_type no_mean \
+    --att_mode 2D_ham \
+    --norm_type gn \
+    --loss_type focal \
+    --focal_a_weight 2 \
+    --max_seq_len 49 \
+    --batch_size 2 \
+    --grad_accum_steps 8 \
+    --temporal_depth 3 \
+    --spatial_depth 2 \
+    --embed_dim 128 \
+    --heads 8 \
+    --lr 5e-4 \
+    --epochs 24 \
+    --checkpoint_path /kaggle/working/s_tsvit_ignore_128dim_24e_pastis_1.pth \
+    --no_progress_bar
+```
+
+### Key Arguments
+
+| Argument | Options | Description |
+|----------|---------|-------------|
+| `--model_type` | `mean`, `no_mean` | Temporal collapse strategy (use the no_mean for the best result) | 
+| `--att_mode` | `2D_dot`, `2D_ham` | Attention mechanism (ham is better) |
+| `--loss_type` | `standard`, `weighted`, `focal` | Loss function |
+| `--norm_type` | `bn`, `gn` | Batch vs Group normalization |
+
+### Resume Training
 ```bash
-python train_and_eval/inference_s_tsvit.py \
-	--ckpt model_checkpoint/snn_unet_latest_checkpoint_75subset_max_30_deeper.pth \
-	--cfg configs/PASTIS24/TSViT_fold1_test_checkpoint.yaml
+python train_and_eval/train_stsvit.py \
+    --resume checkpoints/spiketsvit_best_latest.pth \
+    ... # other args
 ```
 
-Pretrained models
-- Available checkpoints are placed in `model_checkpoint/` in this repo (examples: `snn_unet_latest_*.pth`, `spike_tsvit_151M_pastis_run_latest_latest.pth`). If additional or larger weights are hosted externally, add links and download helpers here.
+---
 
-Reproducing reported results
-- Use the provided configs under `configs/PASTIS24` (folds and evaluation configs are included).
-- For deterministic runs, set seeds and deterministic flags via the training script's CLI (check `train_stsvit.py --help`).
-- Record the config file, checkpoint, and random seed used for any reported experiment.
+## 🎯 Inference & Analysis
+My inference script in kaggle.
+```bash
+!python /kaggle/working/DeepSatModels_SNN/train_and_eval/inference_s_tsvit.py \
+    --val_csv_path /kaggle/working/DeepSatModels_SNN/configs/PASTIS24/splits/old_split_kaggle/chunk_4_paths.csv.bak \
+    --checkpoint_path /kaggle/input/s-tsvit-testing/pytorch/default/12/128dim_pastis_ver3_final/testing/spike_tsvit_151M_pastis_5_best.pth \
+    --model_type no_mean \
+    --att_mode 2D_ham \
+    --norm_type gn \
+    --max_seq_len 49 \
+    --batch_size 2 \
+    --temporal_depth 3 \
+    --spatial_depth 2 \
+    --embed_dim 128 \
+    --heads 8 \
+    --inference
+```
 
-Project structure (short)
-- `models/` — model implementations (see `models/snn/` for spiking models and helpers).
-- `spike_data/` — dataset loaders and preprocessing for PASTIS/France.
-- `train_and_eval/` — training, evaluation, and inference scripts.
-- `configs/` — YAML experiment configs (dataset-specific subfolders and fold definitions).
-- `model_checkpoint/` — included checkpoints for quick evaluation.
-- `notebook_code/` — Jupyter notebooks for experiments and visualizations.
+### Analysis Tools
 
-Development & contributing
-- Report issues or feature requests via the repository issue tracker.
-- For contributions, fork the repo, create a feature branch, and open a pull request. Please follow code style in existing files and keep changes focused.
+| Flag | Analysis |
+|------|----------|
+| `--inference` | Standard accuracy (mIoU, OA) + top-10 best/worst samples |
+| `--test_per_class` | Per-class accuracy breakdown |
+| `--test_energy` | SNN energy consumption (synaptic operations) |
+| `--temporal_importance` | Which time steps matter most per class |
+| `--NDVI` | Phenological confusion (crop growth cycles) |
+| `--analyze_cloud` | Robustness to cloud cover |
+| `--confusion_matrix` | Full classification confusion |
+| `--visual_comparison` | Error map visualization |
+| `--deploy_inference` | Single-sample latency test |
 
-Citation & license
-- License: `LICENSE.txt` in this repository.
-- Paper: please cite the project paper (link / BibTeX to be added here). If you use this code in published work, include a citation to the thesis/paper and indicate which config and checkpoints were used.
+---
 
-Contact
-- For questions about experiments or reproducibility, open an issue or contact the authors (add email or contact method here).
+## 📊 Results
 
-Acknowledgements
-- See `LICENSE.txt` for license terms and any third-party acknowledgements.
+### PASTIS Dataset (Crop Segmentation)
 
-—
-If you'd like, I can:
-- Add runnable example commands with exact CLI flags after inspecting `train_and_eval/train_stsvit.py` and `inference_s_tsvit.py`.
-- Add a small `USAGE.md` with reproducible steps for the PASTIS baseline.
+| Model | mIoU | Energy* | Params |
+|-------|------|---------|--------|
+| TSViT (baseline) | ~0.654 | 100% | 1.7M |
+| **S-TSViT (Ours)** | **~0.669** | **~6%** | **1.5M** |
 
-If you want this text committed, tell me and I'll save it to `README.md` and create a commit.
+*Energy estimated via synaptic operations (SynOps)
+
+> **Key Insight**: S-TSViT achieves comparable accuracy with **~58× energy reduction**, critical for edge deployment on satellites or IoT devices.
+
+---
+
+## 🧪 Reproducibility
+
+### Datasets
+
+| Dataset | Classes | Bands | Resolution | Source |
+|---------|---------|-------|------------|--------|
+| **PASTIS** | 20 (19 crops + bg) | 10 (S2) | 10m | [GitHub](https://github.com/VSainteuf/pastis-benchmark) |
+| **France** | 21 | 13 (S2) | 10m | Custom split |
+
+### Pre-trained Weights
+
+| Model | Checkpoint |
+|-------|-----------|
+| S-TSViT-NoMean | [Download](https://www.kaggle.com/models/nguyenlecao/s-tsvit-testing) |
+
+---
+
+## 🏛️ Citation
+
+If you use this code, please cite:
+Acutally i havent published it anywhere so you can't cite me =))). But you can site other paper that i used to create this.
+
+```bibtex
+
+@inproceedings{tarasoiu2023tsvit,
+  title={DeepSatModels: Temporal-Spatial Vision Transformers for Satellite Image Time Series},
+  author={Tarasoiu, Michail and others},
+  booktitle={ICLR},
+  year={2023}
+}
+
+@article{zhu2022spikevideoformer,
+  title={SpikeVideoFormer: Spiking Neural Networks for Video Understanding},
+  author={Zhu, Zhenyu and others},
+  journal={arXiv preprint},
+  year={2022}
+}
+```
+
+---
+
+## 📂 Repository Structure
+
+```
+S-TSViT/
+├── models/
+│   └── snn/
+│       ├── spike_tsvit.py          # Main architectures
+│       ├── snn_transformer.py      # MS_Block, attention layers
+│       ├── loss_function.py        # Focal loss
+│       └── helper_functions.py     # Analysis tools
+├── train_and_eval/
+│   ├── train_stsvit.py             # Training script
+│   └── inference_s_tsvit.py        # Evaluation & analysis
+├── spike_data/
+│   ├── pastis_dataset.py           # PASTIS dataloader
+│   └── france_dataset.py           # France dataloader
+├── setup_pastis.sh                 # One-command setup
+├── requirements.txt
+└── LICENSE.txt
+```
+
+---
+
+## 🤝 Acknowledgments
+
+- [DeepSatModels](https://github.com/michaeltrs/DeepSatModels) — TSViT baseline and PASTIS preprocessing
+- [SpikingJelly](https://github.com/fangwei123456/spikingjelly) — SNN framework
+- [SpikeVideoFormer](https://github.com/JimmyZou/SpikeVideoFormer) — Spiking video transformer inspiration
+
+---
+
+## 📧 Contact
+
+For questions or collaborations: [Gmail](lecaonguyen1524@gmail.com)
+
+---
+
+**License**: Apache 2.0 — see [LICENSE.txt](LICENSE.txt)
